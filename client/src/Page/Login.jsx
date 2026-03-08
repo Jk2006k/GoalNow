@@ -1,9 +1,11 @@
 import React, { useState } from "react"
+import { useNavigate } from "react-router-dom"
 import Navbar from "../components/Navbar"
 import { Rocket, Briefcase, Chart, Bulb, Megaphone, Phone, Laptop, ThumbsUp, ImageIcon, D } from "../components/Doodles"
 
 export default function LoginPage() {
 
+const navigate = useNavigate()
 const [name, setName] = useState("")
 const [email, setEmail] = useState("")
 const [profile, setProfile] = useState(() => `https://api.dicebear.com/7.x/adventurer/svg?seed=${Math.random()}`)
@@ -108,6 +110,7 @@ const css = `
 
   .form-group {
     margin-bottom: 18px;
+    width: 100%;
   }
 
   .form-input {
@@ -217,7 +220,7 @@ return (
 
     {/* Doodles scattered */}
 
-<D top="130px" left="6%" rotate={-12}><Rocket /></D>
+<D top="130px" left="16%" rotate={-12}><Rocket /></D>
 
 <D top="200px" left="3%" rotate={-5}><ThumbsUp /></D>
 
@@ -225,13 +228,15 @@ return (
 
 <D top="300px" left="22%" rotate={-10}><Megaphone /></D>
 
+<D top="80px" left="46%" rotate={8}><Bulb /></D>
+
 <D top="160px" right="8%" rotate={12}><Briefcase /></D>
 
 <D top="260px" right="18%" rotate={6}><Chart /></D>
 
-<D top="420px" right="10%" rotate={8}><ImageIcon /></D>
+<D top="420px" right="25%" rotate={8}><ImageIcon /></D>
 
-<D bottom="160px" right="6%" rotate={-10}><Laptop /></D>
+<D bottom="220px" right="6%" rotate={-10}><Laptop /></D>
 
 <D bottom="60px" right="3%" rotate={5}><Phone /></D>
 
@@ -306,6 +311,10 @@ return (
             <button 
               className="btn-primary" 
               disabled={!email.trim()}
+              onClick={() => {
+                localStorage.setItem("isLoggedIn", "true");
+                navigate("/");
+              }}
               style={{ 
                 marginBottom: "16px",
                 opacity: email.trim() ? 1 : 0.6,
