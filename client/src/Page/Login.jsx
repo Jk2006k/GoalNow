@@ -11,6 +11,7 @@ const [email, setEmail] = useState("")
 const [profile, setProfile] = useState(() => `https://api.dicebear.com/7.x/adventurer/svg?seed=${Math.random()}`)
 const [step, setStep] = useState(1) // 1: name, 2: email
 
+
 function handleImage(e) {
   const file = e.target.files[0]
   if(file) {
@@ -313,7 +314,7 @@ return (
               disabled={!email.trim()}
               onClick={() => {
                 localStorage.setItem("isLoggedIn", "true");
-                navigate("/");
+                navigate("/home");
               }}
               style={{ 
                 marginBottom: "16px",
