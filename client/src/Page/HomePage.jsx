@@ -1,9 +1,10 @@
 import React from "react"
 import HomePageNavbar from "../components/HomePageNavbar"
 import { Rocket, Briefcase, Chart, Bulb, Megaphone, Phone, Laptop, ThumbsUp, ImageIcon, D } from "../components/Doodles"
+import { useNavigate } from "react-router-dom";
 
 export default function HomePage(){
-
+const navigate = useNavigate();
 const css = `
 
 @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Fraunces:ital,opsz,wght@0,9..144,300;1,9..144,300;1,9..144,400&display=swap');
@@ -19,6 +20,7 @@ const css = `
 .home-wrapper {
   min-height: calc(100vh - 85px);
   padding: 60px 80px 100px;
+  padding-top: 130px;
   position: relative;
   z-index: 10;
 }
@@ -364,8 +366,12 @@ overflow:"hidden"
 Maintain an updated profile with your skills, preferred roles and experience level. 
 This helps Intbar personalise interview questions and generate realistic mock sessions tailored to your path.
 </p>
-<button className="profile-btn">Update Profile ↗</button>
-</div>
+<button 
+className="profile-btn"
+onClick={() => navigate("/profile")}
+>
+Update Profile ↗
+</button></div>
 
 <div className="score-card">
 <div className="score-mini-bars">
@@ -397,7 +403,12 @@ Highlights strengths, weaknesses and progress so you can improve systematically.
 <p className="practice-desc">
 Practice behavioural questions used by top companies and improve storytelling and communication with AI feedback.
 </p>
-<button className="practice-btn">Start Behavioural Practice →</button>
+<button 
+className="practice-btn"
+onClick={()=>navigate("/behavioural")}
+>
+Start Behavioural Practice →
+</button>
 </div>
 
 <div className="practice-card">
@@ -405,7 +416,7 @@ Practice behavioural questions used by top companies and improve storytelling an
 <p className="practice-desc">
 Prepare for coding and system design interviews with simulated sessions and performance analysis.
 </p>
-<button className="practice-btn">Start Technical Round →</button>
+<button className="practice-btn" onClick={()=>navigate("/technical")}>Start Technical Round →</button>
 </div>
 
 

@@ -14,7 +14,7 @@ export default function HomePageNavbar() {
   const handleNavigation = (item) => {
     if (item === "Login/Signup") navigate("/login");
     if (item === "Profile") navigate("/profile");
-    if (item === "About") navigate("/about");
+    if (item === "About") navigate("/home");
     if (item === "Logout") {
       localStorage.removeItem("isLoggedIn");
       setIsLoggedIn(false);
@@ -32,10 +32,13 @@ export default function HomePageNavbar() {
       padding: "22px 64px",
       background: "#fff",
       borderBottom: "1px solid #f0f0f0",
-      position: "relative",
+      position: "fixed",
+      top: 0,
+      left: 0,
+      right: 0,
       zIndex: 100,
     }}>
-      <h1 style={{ fontSize: "2rem", fontWeight: "800", letterSpacing: "-1px", margin: 0, cursor: "pointer" }} onClick={() => navigate("/")} >intbar.</h1>
+      <h1 style={{ fontSize: "2rem", fontWeight: "800", color:"#24344d" ,letterSpacing: "-1px", margin: 0, cursor: "pointer" }} onClick={() => navigate("/")} >intbar.</h1>
       <div style={{ display: "flex", gap: "2px" }}>
         {navItems.map((item) => (
           <button
