@@ -161,13 +161,14 @@ router.get('/profile/:userId', async (req, res) => {
 // Update User Profile
 router.put('/profile/:userId', async (req, res) => {
   try {
-    const { firstName, lastName, profileImage, resume, domain } = req.body;
+    const { firstName, lastName, profileImage, resume, resumeFileName, domain } = req.body;
     
     console.log('=== UPDATE PROFILE ===');
     console.log('User ID:', req.params.userId);
     console.log('firstName:', firstName);
     console.log('domain:', domain);
     console.log('Resume provided:', !!resume);
+    console.log('Resume filename:', resumeFileName);
     if (resume) {
       console.log('Resume size:', resume.length, 'bytes');
       console.log('Resume starts with:', resume.substring(0, 50));
@@ -180,6 +181,7 @@ router.put('/profile/:userId', async (req, res) => {
         lastName,
         profileImage,
         resume,
+        resumeFileName,
         domain,
         updatedAt: new Date(),
       },
@@ -188,6 +190,7 @@ router.put('/profile/:userId', async (req, res) => {
     
     console.log('Profile updated successfully');
     console.log('Saved resume:', !!user.resume);
+    console.log('Saved resume filename:', user.resumeFileName);
     
     res.json({ success: true, user });
   } catch (error) {

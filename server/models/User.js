@@ -32,6 +32,10 @@ const userSchema = new mongoose.Schema({
     type: String,
     default: null,
   },
+  resumeFileName: {
+    type: String,
+    default: null,
+  },
   domain: {
     type: String,
     default: null,
