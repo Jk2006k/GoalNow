@@ -14,11 +14,68 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
 
+  // Helper function to log profile state
+  const logProfileState = (location) => {
+    console.log(`📸 [${location}] Profile state:`);
+    console.log('- Length:', profile?.length);
+    console.log('- Is base64:', profile?.startsWith('data:image') ? 'YES ✅' : 'NO (URL)');
+    console.log('- First 80 chars:', profile?.substring(0, 80));
+    return profile;
+  }
+
   function handleImage(e) {
     const file = e.target.files[0]
     if(file) {
-      const url = URL.createObjectURL(file)
-      setProfile(url)
+      console.log('=== IMAGE UPLOAD ===');
+      console.log('File selected:', file.name, 'size:', file.size)
+      // Compress image more aggressively before storing
+      const reader = new FileReader()
+      reader.onload = () => {
+        console.log('File read, converting to image')
+        const img = new Image()
+        img.onload = () => {
+          console.log('Image loaded, dimensions:', img.width, 'x', img.height)
+          const canvas = document.createElement('canvas')
+          let width = img.width
+          let height = img.height
+          
+          // Resize image to smaller size
+          if (width > 300 || height > 300) {
+            const ratio = Math.min(300 / width, 300 / height)
+            width = Math.floor(width * ratio)
+            height = Math.floor(height * ratio)
+          }
+          
+          canvas.width = width
+          canvas.height = height
+          const ctx = canvas.getContext('2d')
+          ctx.fillStyle = '#ffffff'
+          ctx.fillRect(0, 0, width, height)
+          ctx.drawImage(img, 0, 0, width, height)
+          
+          // Compress more aggressively
+          try {
+            const compressedUrl = canvas.toDataURL('image/jpeg', 0.7)
+            console.log('✅ Image compressed:', compressedUrl.length, 'bytes')
+            console.log('First 100 chars:', compressedUrl.substring(0, 100))
+            setProfile(compressedUrl)
+            console.log('✅ Profile state updated with compressed image')
+            logProfileState('AFTER UPLOAD');
+          } catch (err) {
+            console.error('Canvas toDataURL error:', err)
+            setProfile(reader.result)
+          }
+        }
+        img.onerror = () => {
+          console.error('Image load error')
+          setProfile(reader.result)
+        }
+        img.src = reader.result
+      }
+      reader.onerror = () => {
+        console.error('File read error')
+      }
+      reader.readAsDataURL(file)
     }
   }
 
@@ -28,17 +85,24 @@ export default function LoginPage() {
       setLoading(true)
       setError("")
 
+      logProfileState('GOOGLE SIGNIN CLICKED');
+
       // Decode the JWT token from Google
       const token = credentialResponse.credential
       const decodedToken = JSON.parse(atob(token.split('.')[1]))
+
+      const currentProfile = logProfileState('BEFORE SENDING TO SERVER');
 
       const userData = {
         googleId: decodedToken.sub,
         firstName: decodedToken.given_name,
         lastName: decodedToken.family_name || "",
         email: decodedToken.email,
+        profileImage: currentProfile, // Use uploaded image or default dicebear avatar
         googleProfileImage: decodedToken.picture,
       }
+
+      console.log('📤 Sending userData to server with profileImage');
 
       // Sign up using auth service
       await authService.googleSignup(userData)
@@ -66,15 +130,22 @@ export default function LoginPage() {
         return
       }
 
+      logProfileState('EMAIL SIGNUP CLICKED');
+
+      const currentProfile = logProfileState('BEFORE SENDING TO SERVER');
+
       const userData = {
         firstName: name,
         lastName: "",
         email,
-        profileImage: profile.startsWith("blob:") ? null : profile,
+        profileImage: currentProfile, // Always send - either dicebear URL or uploaded image
       }
 
+      console.log('📤 Sending userData to authService.emailSignup...');
+
       // Sign up using auth service
-      await authService.emailSignup(userData)
+      const response = await authService.emailSignup(userData)
+      console.log('✅ Signup successful, navigating to home')
       navigate("/home")
     } catch (err) {
       console.error("Email signup error:", err)
@@ -341,6 +412,7 @@ export default function LoginPage() {
                 src={profile}
                 alt="Profile"
                 className="profile-image"
+                onLoad={() => console.log('Profile image loaded on page:', profile?.substring(0, 50))}
               />
               <label className="profile-upload-label">
                 Change Avatar

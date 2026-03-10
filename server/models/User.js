@@ -28,6 +28,14 @@ const userSchema = new mongoose.Schema({
     type: String,
     default: null,
   },
+  resume: {
+    type: String,
+    default: null,
+  },
+  domain: {
+    type: String,
+    default: null,
+  },
   signupMethod: {
     type: String,
     enum: ['google', 'email'],
