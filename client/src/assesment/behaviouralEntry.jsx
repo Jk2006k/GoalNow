@@ -1,5 +1,6 @@
 import React, { useRef, useState } from "react"
 import HomePageNavbar from "../components/HomePageNavbar"
+import { useNavigate } from "react-router-dom"
 
 export default function BehaviouralEntry(){
 const camRef = useRef(null)
@@ -8,6 +9,7 @@ const [camEnabled, setCamEnabled] = useState(false)
 const [screenEnabled, setScreenEnabled] = useState(false)
 const [fullEnabled, setFullEnabled] = useState(false)
 const [checksCompleted, setChecksCompleted] = useState(false)
+const navigate = useNavigate();
 
 React.useEffect(() => {
   if(camEnabled && screenEnabled && fullEnabled && !checksCompleted){
@@ -531,7 +533,7 @@ return(
         <div className={`readiness-dot ${fullEnabled ? "lit" : ""}`}/>
         <span>{checksCompleted && camEnabled && screenEnabled && fullEnabled ? "All checks passed — ready to begin" : `${[camEnabled,screenEnabled,fullEnabled].filter(Boolean).length} of 3 checks complete`}</span>
       </div>
-      <button className="start-btn" disabled={!checksCompleted || !fullEnabled}>
+      <button className="start-btn" disabled={!checksCompleted || !fullEnabled} onClick={() => navigate("/behavioral-interview")}>
         Start Interview
         <svg viewBox="0 0 24 24"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
       </button>
