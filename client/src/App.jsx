@@ -8,6 +8,7 @@ import Behavioural from "./Page/Behavioral"
 import BehaviouralEntry from "./assesment/behaviouralEntry"
 import Technical from "./Page/Technical"
 import TechnicalEntry from "./assesment/technicalEntry"
+import BehavioralInterview from "./Page/BehavioralInterview"
 
 function App() {
   return (
@@ -21,6 +22,7 @@ function App() {
         <Route path="/behavioural-entry" element={<BehaviouralEntry />} />
         <Route path="/technical" element={<Technical />} />
         <Route path="/technical-entry" element={<TechnicalEntry />} />
+        <Route path="/behavioral-interview" element={<BehavioralInterview />} />
       </Routes>
     </BrowserRouter>
   )
