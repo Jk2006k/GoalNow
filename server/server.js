@@ -11,7 +11,8 @@ app.use((req, res, next) => {
   res.header('Cross-Origin-Opener-Policy', 'same-origin-allow-popups');
   next();
 });
-app.use(express.json());
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 // MongoDB Connection
 console.log('Attempting to connect to MongoDB...');

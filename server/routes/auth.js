@@ -11,7 +11,7 @@ const generateToken = (userId) => {
 // Google OAuth Callback
 router.post('/google-signup', async (req, res) => {
   try {
-    const { googleId, firstName, lastName, email, googleProfileImage } = req.body;
+    const { googleId, firstName, lastName, email, googleProfileImage, profileImage } = req.body;
 
     if (!googleId || !email) {
       return res.status(400).json({ message: 'Missing required fields' });
@@ -21,23 +21,25 @@ router.post('/google-signup', async (req, res) => {
     let user = await User.findOne({ email });
 
     if (user) {
-      // Update google profile image if not already set
-      if (!user.googleProfileImage && googleProfileImage) {
-        user.googleProfileImage = googleProfileImage;
+      // Update profile image if not already set
+      if (!user.profileImage && profileImage) {
+        user.profileImage = profileImage;
         await user.save();
       }
     } else {
-      // Create new user
+      // Create new user with profileImage (dicebear avatar)
       user = new User({
         googleId,
         firstName,
         lastName,
         email,
+        profileImage: profileImage, // Use the generated dicebear avatar
         googleProfileImage,
         signupMethod: 'google',
         verified: true,
       });
       await user.save();
+      console.log('Google signup - User created with profileImage:', profileImage ? profileImage.substring(0, 50) : 'not provided');
     }
 
     // Generate token
@@ -47,11 +49,13 @@ router.post('/google-signup', async (req, res) => {
       success: true,
       token,
       user: {
+        _id: user._id,
         id: user._id,
         firstName: user.firstName,
         lastName: user.lastName,
         email: user.email,
-        profileImage: user.googleProfileImage,
+        profileImage: user.profileImage, // Return profileImage (dicebear), not googleProfileImage
+        googleProfileImage: user.googleProfileImage,
         signupMethod: user.signupMethod,
       },
     });
@@ -65,6 +69,21 @@ router.post('/google-signup', async (req, res) => {
 router.post('/email-signup', async (req, res) => {
   try {
     const { firstName, lastName, email, profileImage } = req.body;
+
+    console.log('=== EMAIL SIGNUP REQUEST RECEIVED ===');
+    console.log('- firstName:', firstName);
+    console.log('- email:', email);
+    console.log('- profileImage typeof:', typeof profileImage);
+    console.log('- profileImage provided:', !!profileImage);
+    
+    if (profileImage) {
+      console.log('- profileImage length:', profileImage.length);
+      console.log('- profileImage is string:', typeof profileImage === 'string');
+      console.log('- profileImage starts with:', profileImage.substring(0, 50));
+      console.log('- profileImage includes "base64":', profileImage.includes('base64'));
+    } else {
+      console.log('- WARNING: profileImage is null/undefined/empty');
+    }
 
     if (!firstName || !email) {
       return res.status(400).json({ message: 'Missing required fields' });
@@ -89,6 +108,16 @@ router.post('/email-signup', async (req, res) => {
 
     await user.save();
 
+    console.log('=== USER SAVED TO DB ===');
+    console.log('- User ID:', user._id);
+    console.log('- Saved profileImage exists:', !!user.profileImage);
+    if (user.profileImage) {
+      console.log('- Saved profileImage length:', user.profileImage.length);
+      console.log('- Saved profileImage sample:', user.profileImage.substring(0, 50));
+    } else {
+      console.log('- WARNING: profileImage is null in saved user');
+    }
+
     // Generate token
     const token = generateToken(user._id);
 
@@ -96,6 +125,7 @@ router.post('/email-signup', async (req, res) => {
       success: true,
       token,
       user: {
+        _id: user._id,
         id: user._id,
         firstName: user.firstName,
         lastName: user.lastName,
@@ -113,10 +143,14 @@ router.post('/email-signup', async (req, res) => {
 // Get User Profile
 router.get('/profile/:userId', async (req, res) => {
   try {
+    console.log('Getting profile for userId:', req.params.userId)
     const user = await User.findById(req.params.userId).select('-googleId');
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
     }
+    console.log('User found:', user.firstName, user.email)
+    console.log('ProfileImage in DB:', !!user.profileImage)
+    console.log('ProfileImage length in DB:', user.profileImage?.length || 0)
     res.json({ success: true, user });
   } catch (error) {
     console.error('Error fetching profile:', error);
@@ -127,17 +161,34 @@ router.get('/profile/:userId', async (req, res) => {
 // Update User Profile
 router.put('/profile/:userId', async (req, res) => {
   try {
-    const { firstName, lastName, profileImage } = req.body;
+    const { firstName, lastName, profileImage, resume, domain } = req.body;
+    
+    console.log('=== UPDATE PROFILE ===');
+    console.log('User ID:', req.params.userId);
+    console.log('firstName:', firstName);
+    console.log('domain:', domain);
+    console.log('Resume provided:', !!resume);
+    if (resume) {
+      console.log('Resume size:', resume.length, 'bytes');
+      console.log('Resume starts with:', resume.substring(0, 50));
+    }
+    
     const user = await User.findByIdAndUpdate(
       req.params.userId,
       {
         firstName,
         lastName,
         profileImage,
+        resume,
+        domain,
         updatedAt: new Date(),
       },
       { new: true }
     );
+    
+    console.log('Profile updated successfully');
+    console.log('Saved resume:', !!user.resume);
+    
     res.json({ success: true, user });
   } catch (error) {
     console.error('Error updating profile:', error);
