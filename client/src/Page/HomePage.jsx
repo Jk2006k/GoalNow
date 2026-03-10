@@ -1,10 +1,27 @@
-import React from "react"
+import React, { useEffect, useState } from "react"
 import HomePageNavbar from "../components/HomePageNavbar"
+import { authService } from "../services/authService"
 import { Rocket, Briefcase, Chart, Bulb, Megaphone, Phone, Laptop, ThumbsUp, ImageIcon, D } from "../components/Doodles"
 import { useNavigate } from "react-router-dom";
 
 export default function HomePage(){
 const navigate = useNavigate();
+const [user, setUser] = useState(null);
+
+// Check authentication on component mount
+useEffect(() => {
+  if (!authService.isLoggedIn()) {
+    navigate("/login")
+    return
+  }
+  const currentUser = authService.getCurrentUser()
+  setUser(currentUser)
+}, [navigate])
+
+const handleLogout = () => {
+  authService.logout()
+  navigate("/login")
+}
 const css = `
 
 @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Fraunces:ital,opsz,wght@0,9..144,300;1,9..144,300;1,9..144,400&display=swap');
@@ -361,6 +378,8 @@ overflow:"hidden"
 
 <div className="profile-card">
 <div className="profile-icon-wrap">👤</div>
+<h3 className="tool-title" style={{ marginBottom: "6px" }}>Welcome, <em>{user?.firstName}</em></h3>
+<p style={{ fontSize: "0.85rem", color: "#667a34", marginBottom: "20px" }}>{user?.email}</p>
 <h3 className="tool-title">Update Your <em>Profile</em></h3>
 <p className="tool-desc">
 Maintain an updated profile with your skills, preferred roles and experience level. 
@@ -369,6 +388,7 @@ This helps Intbar personalise interview questions and generate realistic mock se
 <button 
 className="profile-btn"
 onClick={() => navigate("/profile")}
+style={{ marginRight: "10px" }}
 >
 Update Profile ↗
 </button></div>
