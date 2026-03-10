@@ -21,6 +21,8 @@ useEffect(() => {
     console.log('Current user from localStorage:', currentUser)
     console.log('Profile image in localStorage:', !!currentUser.profileImage)
     console.log('Profile image length:', currentUser.profileImage?.length || 0)
+    console.log('Resume in localStorage:', !!currentUser.resume)
+    console.log('Resume filename in localStorage:', currentUser.resumeFileName)
     
     // Also fetch fresh user data from server
     const userId = currentUser._id || currentUser.id
@@ -29,6 +31,8 @@ useEffect(() => {
         console.log('Fresh user data from server:', freshUser)
         console.log('Fresh profileImage available:', !!freshUser.profileImage)
         console.log('Fresh profileImage length:', freshUser.profileImage?.length || 0)
+        console.log('Fresh resume available:', !!freshUser.resume)
+        console.log('Fresh resume filename:', freshUser.resumeFileName)
         if (freshUser.profileImage) {
           console.log('ProfileImage starts with:', freshUser.profileImage.substring(0, 50))
         }
@@ -38,6 +42,10 @@ useEffect(() => {
           email: freshUser.email || '',
           domain: freshUser.domain || '',
         })
+        // Set the resume filename from existing data so it displays in UI
+        if (freshUser.resumeFileName) {
+          setResumeFileName(freshUser.resumeFileName)
+        }
       }).catch(err => {
         console.error('Error fetching profile:', err)
         // Fallback to localStorage data
@@ -47,6 +55,10 @@ useEffect(() => {
           email: currentUser.email || '',
           domain: currentUser.domain || '',
         })
+        // Set resume filename from localStorage if available
+        if (currentUser.resumeFileName) {
+          setResumeFileName(currentUser.resumeFileName)
+        }
       })
     }
   }
@@ -163,6 +175,7 @@ const handleSaveChanges = async () => {
       console.log('Saving profile with:');
       console.log('- New profile image:', profileImage ? 'YES' : 'NO');
       console.log('- Resume:', resumeFile ? 'YES (new)' : 'NO (using existing)');
+      console.log('- Resume filename:', resumeFileName || user.resumeFileName);
       
       await authService.updateProfile(userId, updateData)
       const updatedUser = authService.getCurrentUser()
@@ -504,6 +517,19 @@ Update Your Profile
   accept=".pdf"
   onChange={handleResumeChange}
 />
+{resumeFileName && (
+  <div style={{ 
+    marginTop: '8px', 
+    padding: '8px 12px', 
+    backgroundColor: '#e8f5e9', 
+    borderRadius: '6px', 
+    fontSize: '0.85rem',
+    color: '#2e7d32',
+    fontWeight: '500'
+  }}>
+    ✓ Current resume: <strong>{resumeFileName}</strong>
+  </div>
+)}
 </div>
 
 <div className="form-group full-width">
