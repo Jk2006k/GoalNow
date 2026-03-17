@@ -36,7 +36,9 @@ mongoose.connect(process.env.MONGODB_URI, {
 
 // Routes
 const authRoutes = require('./routes/auth');
+const evaluationRoutes = require('./routes/evaluation');
 app.use('/api/auth', authRoutes);
+app.use('/api/evaluation', evaluationRoutes);
 
 // Health Check
 app.get('/api/health', (req, res) => {

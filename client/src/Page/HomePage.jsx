@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react"
 import HomePageNavbar from "../components/HomePageNavbar"
 import { authService } from "../services/authService"
 import { Rocket, Briefcase, Chart, Bulb, Megaphone, Phone, Laptop, ThumbsUp, ImageIcon, D } from "../components/Doodles"
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom"
 
 export default function HomePage(){
 const navigate = useNavigate();
@@ -409,7 +409,7 @@ Update Profile ↗
 Monitor your interview performance across practice sessions. 
 Highlights strengths, weaknesses and progress so you can improve systematically.
 </p>
-<button className="score-btn">View Scores →</button>
+<button className="score-btn" onClick={() => navigate('/score-tracker')}>View Scores →</button>
 </div>
 
 </div>
