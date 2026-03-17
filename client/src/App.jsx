@@ -9,6 +9,8 @@ import BehaviouralEntry from "./assesment/behaviouralEntry"
 import Technical from "./Page/Technical"
 import TechnicalEntry from "./assesment/technicalEntry"
 import BehavioralInterview from "./Page/BehavioralInterview"
+import EvaluationResults from "./Page/EvaluationResults"
+import ScoreTracker from "./Page/ScoreTracker"
 
 function App() {
   return (
@@ -23,6 +25,8 @@ function App() {
         <Route path="/technical" element={<Technical />} />
         <Route path="/technical-entry" element={<TechnicalEntry />} />
         <Route path="/behavioral-interview" element={<BehavioralInterview />} />
+        <Route path="/evaluation-results" element={<EvaluationResults />} />
+        <Route path="/score-tracker" element={<ScoreTracker />} />
       </Routes>
     </BrowserRouter>
   )
