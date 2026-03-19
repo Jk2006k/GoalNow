@@ -50,7 +50,7 @@ export default function HomePageNavbar() {
               borderRadius: "5px",
               padding: "8px 15px",
               fontSize: "0.88rem",
-              fontWeight: "400",
+              fontWeight: "500",
               cursor: "pointer",
               fontFamily: "inherit",
               transition: "background 0.2s ease",
