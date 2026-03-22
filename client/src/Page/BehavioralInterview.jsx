@@ -17,12 +17,22 @@ function loadScript(src) {
 export default function BehavioralInterview() {
   const navigate = useNavigate()
   const camRef             = useRef(null)
+  const screenRef          = useRef(null)
   const canvasRef          = useRef(null)
   const recognitionRef     = useRef(null)
   const mediaRecorderRef   = useRef(null)
+  const interviewVideoRecorderRef = useRef(null)
+  const interviewVideoChunksRef = useRef([])
+  const interviewVideoStartedAtRef = useRef(null)
   const faceMeshRef        = useRef(null)
   const cameraUtilsRef     = useRef(null)
   const lastResultRef      = useRef({ faces: 0, yaw: 0, pitch: 0 })
+  const screenshotIntervalRef = useRef(null)
+  const screenCaptureReadyRef = useRef(false)
+  const hasSubmittedRef = useRef(false)
+  const submitHandlerRef = useRef(null)
+  const fullscreenEstablishedRef = useRef(false)
+  const fullscreenGuardReadyRef = useRef(false)
 
   const [currentQuestionIdx, setCurrentQuestionIdx] = useState(0)
   const [timeLeft,            setTimeLeft]            = useState(20 * 60)
@@ -36,9 +46,100 @@ export default function BehavioralInterview() {
   const [faceAlert,           setFaceAlert]           = useState(null)
   const [mpReady,             setMpReady]             = useState(false)
   const [shuffledQuestions,   setShuffledQuestions]   = useState([])
+  const [isSubmittingAnswer,  setIsSubmittingAnswer]  = useState(false)
 
   const NUM_Q   = 10
   const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
+
+  const startInterviewVideoRecording = useCallback(() => {
+    const stream = window.__goalnowScreenStream || screenRef.current?.srcObject
+    if (!stream || !stream.getTracks?.().some((t) => t.readyState === 'live')) {
+      console.warn('Cannot start interview video recording: no live screen stream')
+      return
+    }
+
+    if (interviewVideoRecorderRef.current?.state === 'recording') return
+
+    const mimeTypes = [
+      'video/webm;codecs=vp9',
+      'video/webm;codecs=vp8',
+      'video/webm'
+    ]
+    const mimeType = mimeTypes.find((m) => window.MediaRecorder?.isTypeSupported?.(m)) || 'video/webm'
+
+    try {
+      const screenTrack = stream.getVideoTracks?.()[0]
+      if (screenTrack && 'contentHint' in screenTrack) {
+        screenTrack.contentHint = 'detail'
+      }
+
+      const recorder = new MediaRecorder(stream, {
+        mimeType,
+        // Keep bitrate low enough for 20-30 min uploads while preserving readable screen text.
+        videoBitsPerSecond: 100000,
+      })
+
+      interviewVideoChunksRef.current = []
+      interviewVideoStartedAtRef.current = new Date().toISOString()
+
+      recorder.ondataavailable = (event) => {
+        if (event.data && event.data.size > 0) {
+          interviewVideoChunksRef.current.push(event.data)
+        }
+      }
+
+      recorder.start(5000)
+      interviewVideoRecorderRef.current = recorder
+      console.log('Started interview video recording')
+    } catch (error) {
+      console.error('Failed to start interview video recording:', error)
+    }
+  }, [])
+
+  const stopAndUploadInterviewVideo = useCallback(async () => {
+    const recorder = interviewVideoRecorderRef.current
+    if (!recorder) return
+
+    try {
+      if (recorder.state === 'recording') {
+        await new Promise((resolve) => {
+          recorder.onstop = resolve
+          recorder.stop()
+        })
+      }
+
+      const chunks = interviewVideoChunksRef.current
+      if (!chunks.length) return
+
+      const blob = new Blob(chunks, { type: recorder.mimeType || 'video/webm' })
+      if (!blob.size) return
+
+      const videoData = await new Promise((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onloadend = () => resolve(reader.result)
+        reader.onerror = reject
+        reader.readAsDataURL(blob)
+      })
+
+      await axios.post(`${API_URL}/evaluation/proctoring/video`, {
+        interviewType: 'behavioral',
+        videoData,
+        mimeType: blob.type || 'video/webm',
+        startedAt: interviewVideoStartedAtRef.current,
+        endedAt: new Date().toISOString(),
+      }, {
+        headers: { Authorization: `Bearer ${authToken}` }
+      })
+
+      console.log('Interview video uploaded successfully')
+    } catch (error) {
+      console.error('Failed to upload interview video:', error.response?.data || error.message)
+    } finally {
+      interviewVideoChunksRef.current = []
+      interviewVideoRecorderRef.current = null
+      interviewVideoStartedAtRef.current = null
+    }
+  }, [API_URL, authToken])
 
   // ─── Fisher-Yates Shuffle Function ────────────────────────────────────────
   const shuffleArray = (array) => {
@@ -188,6 +289,52 @@ export default function BehavioralInterview() {
     setAuthToken(localStorage.getItem('authToken'))
   }, [])
 
+  // ─── SCREEN SHARE FOR FULL-SCREEN SCREENSHOTS ────────────────────────────
+  useEffect(() => {
+    const preApprovedStream = window.__goalnowScreenStream
+    if (preApprovedStream && preApprovedStream.getTracks?.().some((t) => t.readyState === 'live')) {
+      const screenTrack = preApprovedStream.getVideoTracks?.()[0]
+      if (screenTrack && 'contentHint' in screenTrack) {
+        screenTrack.contentHint = 'detail'
+      }
+
+      if (screenRef.current) {
+        screenRef.current.onloadedmetadata = null
+        screenRef.current.srcObject = preApprovedStream
+        const markReady = () => {
+          screenCaptureReadyRef.current = true
+          startInterviewVideoRecording()
+        }
+
+        // `onloadedmetadata` can be missed when a reused stream is attached quickly.
+        if (screenRef.current.readyState >= 2) {
+          screenRef.current.play?.().catch(() => {})
+          markReady()
+        } else {
+          screenRef.current.onloadedmetadata = () => {
+            screenRef.current?.play?.().catch(() => {})
+            markReady()
+          }
+        }
+      }
+
+      preApprovedStream.getVideoTracks().forEach((track) => {
+        track.addEventListener('ended', () => {
+          screenCaptureReadyRef.current = false
+        })
+      })
+    } else {
+      screenCaptureReadyRef.current = false
+      console.warn('Screen share stream missing. Screenshots will be skipped until screen share is enabled on the setup page.')
+    }
+
+    return () => {
+      // Detach only; do not stop global screen-share stream during route lifecycle.
+      if (screenRef.current) screenRef.current.srcObject = null
+      screenCaptureReadyRef.current = false
+    }
+  }, [startInterviewVideoRecording])
+
   // ─── TIMER ────────────────────────────────────────────────────────────────
   useEffect(() => {
     if (timeLeft <= 0) { handleSubmit(); return }
@@ -197,9 +344,33 @@ export default function BehavioralInterview() {
 
   // ─── FULLSCREEN GUARD ─────────────────────────────────────────────────────
   useEffect(() => {
-    const fn = () => { if (!document.fullscreenElement) handleSubmit() }
+    const guardInitTimer = setTimeout(() => {
+      fullscreenGuardReadyRef.current = true
+      if (document.fullscreenElement) {
+        fullscreenEstablishedRef.current = true
+      }
+    }, 1200)
+
+    const fn = () => {
+      if (document.fullscreenElement) {
+        fullscreenEstablishedRef.current = true
+        return
+      }
+
+      // Avoid false exits during initial route transition and permission prompts.
+      if (!fullscreenGuardReadyRef.current) return
+
+      // Enforce exit only after fullscreen has been entered at least once.
+      if (fullscreenEstablishedRef.current) {
+        submitHandlerRef.current?.()
+      }
+    }
+
     document.addEventListener('fullscreenchange', fn)
-    return () => document.removeEventListener('fullscreenchange', fn)
+    return () => {
+      clearTimeout(guardInitTimer)
+      document.removeEventListener('fullscreenchange', fn)
+    }
   }, [])
 
   // ─── HELPERS ──────────────────────────────────────────────────────────────
@@ -207,6 +378,11 @@ export default function BehavioralInterview() {
     `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`
 
   const stopAllMedia = () => {
+    if (screenshotIntervalRef.current) {
+      clearInterval(screenshotIntervalRef.current)
+      screenshotIntervalRef.current = null
+    }
+
     // Stop MediaRecorder
     try { mediaRecorderRef.current?.stop() } catch(e) {}
     if (mediaRecorderRef.current?.stream) {
@@ -225,9 +401,228 @@ export default function BehavioralInterview() {
       camRef.current.srcObject = null
     }
 
+    // Stop screen share stream used for full-screen screenshots
+    if (screenRef.current?.srcObject) {
+      screenRef.current.srcObject.getTracks().forEach(t => t.stop())
+      screenRef.current.srcObject = null
+    }
+    window.__goalnowScreenStream = null
+    screenCaptureReadyRef.current = false
+
     // Stop speech recognition
     try { recognitionRef.current?.stop() } catch(e) {}
   }
+
+  const captureAndUploadScreenshot = useCallback(async () => {
+    if (!canvasRef.current || !authToken) return
+
+    const screenStream = window.__goalnowScreenStream || screenRef.current?.srcObject
+    const screenTrack = screenStream?.getVideoTracks?.()[0]
+    if (!screenCaptureReadyRef.current || !screenTrack || screenTrack.readyState !== 'live') {
+      console.warn('Skipping screenshot upload: no active screen-share video stream')
+      return
+    }
+
+    const canvas = canvasRef.current
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+
+    const isMostlyBlackFrame = () => {
+      try {
+        const sampleWidth = Math.min(canvas.width, 64)
+        const sampleHeight = Math.min(canvas.height, 36)
+        if (!sampleWidth || !sampleHeight) return true
+
+        const sample = document.createElement('canvas')
+        sample.width = sampleWidth
+        sample.height = sampleHeight
+        const sampleCtx = sample.getContext('2d')
+        if (!sampleCtx) return true
+
+        sampleCtx.drawImage(canvas, 0, 0, sampleWidth, sampleHeight)
+        const { data } = sampleCtx.getImageData(0, 0, sampleWidth, sampleHeight)
+        let brightPixels = 0
+        const total = sampleWidth * sampleHeight
+
+        for (let i = 0; i < data.length; i += 4) {
+          const r = data[i]
+          const g = data[i + 1]
+          const b = data[i + 2]
+          const luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b
+          if (luminance > 18) brightPixels += 1
+        }
+
+        return brightPixels / total < 0.01
+      } catch {
+        return true
+      }
+    }
+
+    let frameCaptured = false
+    let frameLooksBlack = true
+
+    // Primary path: capture directly from screen track to avoid black frames from hidden video elements.
+    for (let attempt = 0; attempt < 3 && (!frameCaptured || frameLooksBlack); attempt += 1) {
+      try {
+        if (window.ImageCapture) {
+          const imageCapture = new ImageCapture(screenTrack)
+          const bitmap = await imageCapture.grabFrame()
+          canvas.width = Math.min(bitmap.width, 640)
+          canvas.height = Math.min(bitmap.height, 480)
+          ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height)
+          frameCaptured = true
+          frameLooksBlack = isMostlyBlackFrame()
+          if (!frameLooksBlack) break
+        }
+      } catch (error) {
+        if (attempt === 0) {
+          console.warn('ImageCapture fallback to video element:', error?.message || error)
+        }
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, 220))
+    }
+
+    // Fallback path for browsers without ImageCapture support.
+    if (!frameCaptured || frameLooksBlack) {
+      const fallbackVideo = document.createElement('video')
+      fallbackVideo.muted = true
+      fallbackVideo.playsInline = true
+      fallbackVideo.srcObject = screenStream
+
+      try {
+        await new Promise((resolve, reject) => {
+          let settled = false
+          const finish = (ok) => {
+            if (settled) return
+            settled = true
+            if (ok) resolve()
+            else reject(new Error('Screen video failed to become playable'))
+          }
+
+          const timer = setTimeout(() => {
+            cleanup()
+            finish(false)
+          }, 1500)
+
+          const onReady = () => {
+            cleanup()
+            finish(true)
+          }
+
+          const cleanup = () => {
+            clearTimeout(timer)
+            fallbackVideo.onloadedmetadata = null
+            fallbackVideo.oncanplay = null
+            fallbackVideo.onerror = null
+          }
+
+          fallbackVideo.onloadedmetadata = onReady
+          fallbackVideo.oncanplay = onReady
+          fallbackVideo.onerror = () => {
+            cleanup()
+            finish(false)
+          }
+
+          if (fallbackVideo.readyState >= 2) {
+            cleanup()
+            finish(true)
+            return
+          }
+
+          fallbackVideo.play?.().catch(() => {})
+        })
+
+        if (!fallbackVideo.videoWidth || !fallbackVideo.videoHeight) {
+          console.warn('Skipping screenshot upload: fallback screen video has no dimensions')
+          return
+        }
+
+        canvas.width = Math.min(fallbackVideo.videoWidth, 640)
+        canvas.height = Math.min(fallbackVideo.videoHeight, 480)
+        ctx.drawImage(fallbackVideo, 0, 0, canvas.width, canvas.height)
+        frameLooksBlack = isMostlyBlackFrame()
+      } finally {
+        fallbackVideo.pause?.()
+        fallbackVideo.srcObject = null
+      }
+    }
+
+    if (frameLooksBlack) {
+      console.warn('Skipping screenshot upload: detected black frame from screen share stream')
+      return
+    }
+
+    // Use lower quality (0.7) to reduce file size
+    const imageData = canvas.toDataURL('image/jpeg', 0.7)
+
+    // Log size for debugging
+    const sizeMB = (imageData.length / (1024 * 1024)).toFixed(2)
+    console.log(`📸 Screenshot: ${sizeMB}MB`)
+
+    try {
+      const response = await axios.post(`${API_URL}/evaluation/proctoring/screenshot`, {
+        interviewType: 'behavioral',
+        imageData,
+        capturedAt: new Date().toISOString(),
+      }, {
+        headers: { Authorization: `Bearer ${authToken}` }
+      })
+      
+      if (!response.data.success) {
+        console.warn('⚠️ Screenshot upload warning:', response.data.message)
+      }
+    } catch (error) {
+      console.error('❌ Failed to upload proctoring screenshot:', error.response?.data || error.message)
+    }
+  }, [API_URL, authToken])
+
+  const finalizeProctoring = useCallback(async () => {
+    if (!authToken) return
+    try {
+      console.log('📤 Finalizing proctoring...')
+      const evaluationIds = Object.values(evaluationStatuses)
+        .map((item) => item?.evaluationId)
+        .filter(Boolean)
+
+      const res = await axios.post(`${API_URL}/evaluation/proctoring/finalize`, {
+        interviewType: 'behavioral',
+        evaluationIds,
+      }, {
+        headers: { Authorization: `Bearer ${authToken}` }
+      })
+
+      console.log('✅ Proctoring finalized, response:', res.data)
+      
+      const summary = res.data?.summary
+      if (summary?.malpracticeDetected) {
+        console.warn('⚠️ Proctoring note recorded:', summary.alerts)
+      }
+    } catch (error) {
+      console.error('❌ Failed to finalize proctoring:', error.response?.data || error.message)
+    }
+  }, [API_URL, authToken, evaluationStatuses])
+
+  useEffect(() => {
+    if (!authToken) return
+    if (screenshotIntervalRef.current) return
+
+    console.log('🔄 Starting screenshot capture (every 30s)')
+
+    // Capture immediately once when interview starts.
+    captureAndUploadScreenshot()
+
+    screenshotIntervalRef.current = setInterval(() => {
+      captureAndUploadScreenshot()
+    }, 30000)
+
+    return () => {
+      if (screenshotIntervalRef.current) {
+        clearInterval(screenshotIntervalRef.current)
+        screenshotIntervalRef.current = null
+      }
+    }
+  }, [authToken, captureAndUploadScreenshot])
 
   // ─── MIC TOGGLE ───────────────────────────────────────────────────────────
   const handleMicToggle = async () => {
@@ -255,9 +650,11 @@ export default function BehavioralInterview() {
   }
 
   // ─── SUBMIT ANSWER ────────────────────────────────────────────────────────
-  const handleSubmitAnswer = async () => {
+  const submitCurrentAnswer = async () => {
     if (!transcribedText.trim()) { alert('Please speak an answer first.'); return }
     if (!authToken)               { alert('Authentication required.');     return }
+
+    setIsSubmittingAnswer(true)
     try {
       const res = await axios.post(`${API_URL}/evaluation/submit-answer`, {
         questionIndex:     currentQuestionIdx,
@@ -271,29 +668,49 @@ export default function BehavioralInterview() {
         [currentQuestionIdx]: { evaluationId: res.data.evaluationId, status: 'pending' }
       }))
       setAnsweredQuestions(p => new Set(p).add(currentQuestionIdx))
-      setHasStopped(false)
+      return true
     } catch(e) {
       alert('Error: ' + (e.response?.data?.message || e.message))
+      return false
+    } finally {
+      setIsSubmittingAnswer(false)
     }
   }
 
   // ─── NEXT QUESTION ────────────────────────────────────────────────────────
-  const handleNextQuestion = () => {
+  const handleNextQuestion = async () => {
+    if (isSubmittingAnswer) return
+
+    const submitted = await submitCurrentAnswer()
+    if (!submitted) return
+
     if (currentQuestionIdx < NUM_Q - 1) {
       setCurrentQuestionIdx(p => p + 1)
       setHasStopped(false)
       setIsMicActive(false)
       setIsRecording(false)
       setTranscribedText("")
+      return
     }
+
+    await handleSubmit()
   }
 
   // ─── SUBMIT / EXIT ────────────────────────────────────────────────────────
-  const handleSubmit = () => {
+  const handleSubmit = useCallback(async () => {
+    if (hasSubmittedRef.current) return
+    hasSubmittedRef.current = true
+
+    await stopAndUploadInterviewVideo()
     stopAllMedia()
+    await finalizeProctoring()
     document.exitFullscreen().catch(() => {})
     navigate("/home")
-  }
+  }, [finalizeProctoring, navigate, stopAndUploadInterviewVideo])
+
+  useEffect(() => {
+    submitHandlerRef.current = handleSubmit
+  }, [handleSubmit])
 
   // ─── ALERT CONFIG ─────────────────────────────────────────────────────────
   const ALERTS = {
@@ -479,15 +896,13 @@ export default function BehavioralInterview() {
                   <button className="bstop" onClick={handleMicToggle}>Stop</button>
                 )}
                 {hasStopped && (
-                  <>
-                    <button className="bsub" onClick={handleSubmitAnswer}>Submit Answer</button>
-                    <button className="bstop" onClick={() => { setHasStopped(false); setTranscribedText("") }}>
-                      Re-record
-                    </button>
-                  </>
-                )}
-                {currentQuestionIdx < NUM_Q - 1 && answeredQuestions.has(currentQuestionIdx) && (
-                  <button className="bnxt" onClick={handleNextQuestion}>Next Question</button>
+                  <button className="bnxt" onClick={handleNextQuestion} disabled={isSubmittingAnswer}>
+                    {isSubmittingAnswer
+                      ? 'Submitting...'
+                      : currentQuestionIdx < NUM_Q - 1
+                        ? 'Next Question'
+                        : 'Finish Test'}
+                  </button>
                 )}
               </div>
             </div>
@@ -500,6 +915,8 @@ export default function BehavioralInterview() {
 
           <div className={`cambox ${isAlert ? (alertClr === 'orange' ? 'alarm-orange' : 'alarm-red') : ''}`}>
             <video ref={camRef} autoPlay muted playsInline />
+            <canvas ref={canvasRef} style={{ display: 'none' }} />
+            <video ref={screenRef} autoPlay muted playsInline style={{ display: 'none' }} />
 
             {!mpReady && (
               <div className="mp-loading">

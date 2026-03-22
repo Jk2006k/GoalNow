@@ -56,7 +56,16 @@ async function enableScreen(){
   })
 }
 
-function enableFull(){
+async function enableFull(){
+  // If screen hasn't been enabled yet, request it first before entering fullscreen
+  if (!screenEnabled) {
+    try {
+      await enableScreen()
+    } catch (error) {
+      console.error('Failed to enable screen share:', error)
+      // Continue anyway - fullscreen will still work
+    }
+  }
   document.documentElement.requestFullscreen()
   setFullEnabled(true)
 }
@@ -728,17 +737,34 @@ return(
         <button
           className="start-btn"
           disabled={!checksCompleted || !fullEnabled}
-          onClick={() => {
+          onClick={async () => {
             // Release camera/mic so BehavioralInterview can re-acquire it cleanly
             if (camRef.current?.srcObject) {
               camRef.current.srcObject.getTracks().forEach(t => t.stop())
               camRef.current.srcObject = null
             }
-            // Release screen share
-            if (screenRef.current?.srcObject) {
-              screenRef.current.srcObject.getTracks().forEach(t => t.stop())
-              screenRef.current.srcObject = null
+
+            const screenStream = screenRef.current?.srcObject || null
+            const hasLiveScreen = !!screenStream?.getTracks?.().some(t => t.readyState === 'live')
+
+            if (!hasLiveScreen) {
+              alert('Screen share is required. Please enable screen share before starting the interview.')
+              return
             }
+
+            if (!document.fullscreenElement) {
+              try {
+                await document.documentElement.requestFullscreen()
+                setFullEnabled(true)
+              } catch (error) {
+                alert('Please enable full screen before starting the interview.')
+                return
+              }
+            }
+
+            // Keep screen-share stream alive and pass it to interview page
+            // to avoid prompting the user again.
+            window.__goalnowScreenStream = screenStream
             navigate("/behavioral-interview")
           }}
         >
