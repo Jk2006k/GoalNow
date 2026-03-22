@@ -358,21 +358,27 @@ export default function EvaluationResults(){
         <div className="evaluations-grid">
           {evaluations.map((evaluation, idx) => {
             return (
-              <div key={idx} className={`evaluation-card ${evaluation.isEvaluated ? 'evaluated' : 'pending'}`}>
+              <div key={idx} className={`evaluation-card ${evaluation.displayScoreReady ? 'evaluated' : 'pending'}`}>
                 <div className="card-question">{evaluation.question.substring(0, 50)}...</div>
                 
                 <div className="card-meta">
                   <span>{formatDate(evaluation.submittedAt).split(' ').slice(0, 3).join(' ')}</span>
-                  <span className={`card-status ${evaluation.isEvaluated ? 'evaluated' : 'pending'}`}>
-                    {evaluation.isEvaluated ? '✓ Evaluated' : '⏳ Pending'}
+                  <span className={`card-status ${evaluation.displayScoreReady ? 'evaluated' : 'pending'}`}>
+                    {evaluation.displayScoreReady ? '✓ Evaluated' : '⏳ Pending'}
                   </span>
                 </div>
 
-                {evaluation.score !== null ? (
+                {evaluation.displayScoreReady && evaluation.score !== null ? (
                   <div className="card-score">{evaluation.score}%</div>
                 ) : (
                   <div className="timer-status">
-                    🔄 Evaluating...
+                    🔄 Pending (AI + Proctoring)...
+                  </div>
+                )}
+
+                {evaluation.displayScoreReady && evaluation.proctoringTriggerCount >= 2 && (
+                  <div className="timer-status" style={{ color: '#c0392b', fontWeight: 700 }}>
+                    ⚠️ Proctoring Note ({evaluation.proctoringTriggerCount || 0} triggers)
                   </div>
                 )}
 
@@ -380,7 +386,7 @@ export default function EvaluationResults(){
                   className="card-button view"
                   onClick={() => checkResult(evaluation._id)}
                 >
-                  {evaluation.isEvaluated ? 'View Results' : 'Check Status'}
+                  {evaluation.displayScoreReady ? 'View Results' : 'Check Status'}
                 </button>
               </div>
             )
@@ -407,41 +413,30 @@ export default function EvaluationResults(){
             ) : (
               <>
                 <div className="result-section">
-                  <div className="result-label">Overall Score</div>
-                  <div className="score-display">
-                    {selectedEvaluation.evaluation.score}
-                    <span style={{ fontSize: '1.2rem' }}>%</span>
-                  </div>
+                  <div className="result-label">Question</div>
+                  <div className="result-value">{selectedEvaluation.evaluation.question}</div>
                 </div>
 
-                {selectedEvaluation.evaluation.scores && (
+                <div className="result-section">
+                  <div className="result-label">Your Answer</div>
+                  <div className="result-value">{selectedEvaluation.evaluation.transcribedAnswer || 'Answer not available.'}</div>
+                </div>
+
+                <div className="result-section">
+                  <div className="result-label">AI Feedback & Improvements</div>
+                  <div className="result-value">{selectedEvaluation.evaluation.feedback}</div>
+                </div>
+
+                {selectedEvaluation.evaluation.proctoringTriggerCount >= 2 && (
                   <div className="result-section">
-                    <div className="result-label">Score Breakdown</div>
-                    <div className="score-breakdown">
-                      <div className="score-item">
-                        <div className="score-name">Clarity</div>
-                        <div className="score-number">{selectedEvaluation.evaluation.scores.clarity}</div>
-                      </div>
-                      <div className="score-item">
-                        <div className="score-name">Relevance</div>
-                        <div className="score-number">{selectedEvaluation.evaluation.scores.relevance}</div>
-                      </div>
-                      <div className="score-item">
-                        <div className="score-name">Completeness</div>
-                        <div className="score-number">{selectedEvaluation.evaluation.scores.completeness}</div>
-                      </div>
-                      <div className="score-item">
-                        <div className="score-name">Professionalism</div>
-                        <div className="score-number">{selectedEvaluation.evaluation.scores.professionalism}</div>
-                      </div>
+                    <div className="result-label">Proctoring Note</div>
+                    <div className="result-value" style={{ color: '#c0392b', fontWeight: 700 }}>
+                      {(selectedEvaluation.evaluation.redCardReasons && selectedEvaluation.evaluation.redCardReasons.length > 0)
+                        ? selectedEvaluation.evaluation.redCardReasons.join(' | ')
+                        : `Suspicious screenshot triggers were detected (${selectedEvaluation.evaluation.proctoringTriggerCount || 0}).`}
                     </div>
                   </div>
                 )}
-
-                <div className="result-section">
-                  <div className="result-label">Feedback</div>
-                  <div className="result-value">{selectedEvaluation.evaluation.feedback}</div>
-                </div>
 
                 <div className="result-section">
                   <div className="result-label">Evaluated On</div>

@@ -49,6 +49,32 @@ const EvaluationSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
+  isProctoringEvaluated: {
+    type: Boolean,
+    default: false
+  },
+  proctoringStatus: {
+    type: String,
+    enum: ['pending', 'completed'],
+    default: 'pending'
+  },
+  proctoringReviewedAt: {
+    type: Date,
+    default: null
+  },
+  proctoringTriggerCount: {
+    type: Number,
+    default: 0,
+    min: 0
+  },
+  redCard: {
+    type: Boolean,
+    default: false
+  },
+  redCardReasons: {
+    type: [String],
+    default: []
+  },
   evaluationScores: {
     clarity: { type: Number, default: null },
     relevance: { type: Number, default: null },

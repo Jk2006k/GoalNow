@@ -46,10 +46,13 @@ export default function ScoreTracker() {
     groups.push(currentGroup)
 
     return groups.map((group, idx) => {
-      const evaluatedQuestions = group.filter(q => q.isEvaluated && q.score !== null)
+      const evaluatedQuestions = group.filter(q => q.displayScoreReady && q.score !== null)
       const avgScore = evaluatedQuestions.length > 0
         ? Math.round(evaluatedQuestions.reduce((sum, q) => sum + q.score, 0) / evaluatedQuestions.length)
         : null
+
+      const hasProctoringNote = group.some(q => (q.proctoringTriggerCount || 0) >= 2)
+      const redCardReasons = [...new Set(group.flatMap((q) => q.redCardReasons || []))].slice(0, 5)
 
       return {
         testNumber: idx + 1,
@@ -57,7 +60,9 @@ export default function ScoreTracker() {
         questions: group,
         totalQuestions: group.length,
         avgScore,
-        allEvaluated: group.every(q => q.isEvaluated)
+        allEvaluated: group.every(q => q.displayScoreReady),
+        hasProctoringNote,
+        redCardReasons,
       }
     })
   }
@@ -285,6 +290,15 @@ export default function ScoreTracker() {
       background: #fef5e7;
       padding: 6px 12px;
       border-radius: 6px;
+    }
+
+    .st-redcard-reason {
+      margin-top: 8px;
+      font-size: 0.74rem;
+      color: #b03a2e;
+      font-weight: 600;
+      max-width: 520px;
+      line-height: 1.45;
     }
 
     .st-test-arrow {
@@ -628,9 +642,15 @@ export default function ScoreTracker() {
                   ) : (
                     <span className="st-test-pending-badge">⏳ Evaluating</span>
                   )}
+                  {test.hasProctoringNote && (
+                    <span className="st-test-pending-badge" style={{ background: '#fdecea', color: '#c0392b' }}>
+                      ⚠️ Proctoring Note
+                    </span>
+                  )}
                   <span className={`st-test-arrow ${expandedTest === test.testNumber ? 'open' : ''}`}>▼</span>
                 </div>
               </div>
+
 
               {expandedTest === test.testNumber && (
                 <div className="st-questions-list">
@@ -644,10 +664,21 @@ export default function ScoreTracker() {
                         <div className="st-q-index">Q{qIdx + 1}</div>
                         <div className="st-q-text">{q.question}</div>
                       </div>
-                      {q.isEvaluated && q.score !== null ? (
+                      {q.displayScoreReady && q.score !== null ? (
                         <span className="st-q-score" style={{ color: getScoreColor(q.score) }}>
                           {q.score}% →
                         </span>
+                      ) : ((q.proctoringTriggerCount || 0) >= 2) ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', marginLeft: 16 }}>
+                          <span className="st-q-pending" style={{ color: '#c0392b', fontWeight: 700, marginLeft: 0 }}>
+                            ⚠️ Proctoring Note
+                          </span>
+                          {!!q.redCardReasons?.length && (
+                            <span className="st-q-pending" style={{ color: '#b03a2e', maxWidth: 320, textAlign: 'right', marginLeft: 0 }}>
+                              {q.redCardReasons[0]}
+                            </span>
+                          )}
+                        </div>
                       ) : (
                         <span className="st-q-pending">⏳ Pending</span>
                       )}
@@ -670,39 +701,29 @@ export default function ScoreTracker() {
               <div className="st-modal-question">{selectedQuestion.evaluation.question || 'Interview Question'}</div>
             </div>
 
-            <div className="st-modal-score-big">
-              <div className="st-modal-score-num" style={{ color: getScoreColor(selectedQuestion.evaluation.score) }}>
-                {selectedQuestion.evaluation.score}<span style={{ fontSize: '1.2rem', fontWeight: 400 }}>%</span>
-              </div>
-              <div className="st-modal-score-label">Overall Score</div>
-            </div>
-
             <div className="st-modal-body">
-              {selectedQuestion.evaluation.scores && (
-                <div className="st-breakdown-grid">
-                  <div className="st-breakdown-item">
-                    <div className="st-breakdown-name">Clarity</div>
-                    <div className="st-breakdown-val">{selectedQuestion.evaluation.scores.clarity}</div>
-                  </div>
-                  <div className="st-breakdown-item">
-                    <div className="st-breakdown-name">Relevance</div>
-                    <div className="st-breakdown-val">{selectedQuestion.evaluation.scores.relevance}</div>
-                  </div>
-                  <div className="st-breakdown-item">
-                    <div className="st-breakdown-name">Completeness</div>
-                    <div className="st-breakdown-val">{selectedQuestion.evaluation.scores.completeness}</div>
-                  </div>
-                  <div className="st-breakdown-item">
-                    <div className="st-breakdown-name">Professionalism</div>
-                    <div className="st-breakdown-val">{selectedQuestion.evaluation.scores.professionalism}</div>
-                  </div>
+              <div className="st-feedback-box" style={{ background: '#f8f9fa' }}>
+                <div className="st-feedback-title" style={{ color: '#555' }}>🎤 Your Answer</div>
+                <div className="st-feedback-text" style={{ color: '#333' }}>
+                  {selectedQuestion.evaluation.transcribedAnswer || 'Answer not available.'}
                 </div>
-              )}
+              </div>
 
               {selectedQuestion.evaluation.feedback && (
                 <div className="st-feedback-box">
                   <div className="st-feedback-title">🤖 AI Feedback & Improvements</div>
                   <div className="st-feedback-text">{selectedQuestion.evaluation.feedback}</div>
+                </div>
+              )}
+
+              {selectedQuestion.evaluation.proctoringTriggerCount >= 2 && (
+                <div className="st-feedback-box" style={{ background: '#fdecea' }}>
+                  <div className="st-feedback-title" style={{ color: '#c0392b' }}>⚠️ Proctoring Note</div>
+                  <div className="st-feedback-text" style={{ color: '#8e2b21' }}>
+                    {(selectedQuestion.evaluation.redCardReasons && selectedQuestion.evaluation.redCardReasons.length > 0)
+                      ? selectedQuestion.evaluation.redCardReasons.join(' | ')
+                      : 'Suspicious screenshot triggers were detected during proctoring.'}
+                  </div>
                 </div>
               )}
 

@@ -371,8 +371,11 @@ export default function LoginPage() {
     }
   `
 
+  const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID
+  const isGoogleConfigured = !!googleClientId && googleClientId !== "YOUR_GOOGLE_CLIENT_ID"
+
   return (
-    <GoogleOAuthProvider clientId={import.meta.env.VITE_GOOGLE_CLIENT_ID || "YOUR_GOOGLE_CLIENT_ID"}>
+    <GoogleOAuthProvider clientId={googleClientId || "YOUR_GOOGLE_CLIENT_ID"}>
       <div style={{
         fontFamily: "'Helvetica Neue', Arial, sans-serif",
         background: "#fff",
@@ -485,10 +488,16 @@ export default function LoginPage() {
 
                 {/* Google Button */}
                 <div className="google-button-wrapper">
-                  <GoogleLogin
-                    onSuccess={handleGoogleSuccess}
-                    onError={handleGoogleError}
-                  />
+                  {isGoogleConfigured ? (
+                    <GoogleLogin
+                      onSuccess={handleGoogleSuccess}
+                      onError={handleGoogleError}
+                    />
+                  ) : (
+                    <div className="error-message" style={{ width: "100%", marginBottom: 0 }}>
+                      Google sign-in is not configured. Set VITE_GOOGLE_CLIENT_ID in client/.env.local.
+                    </div>
+                  )}
                 </div>
 
                 {/* Back Button */}

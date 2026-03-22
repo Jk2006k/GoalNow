@@ -1,7 +1,8 @@
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
-require('dotenv').config();
+const path = require('path');
+require('dotenv').config({ path: path.resolve(__dirname, '.env') });
 
 const app = express();
 
@@ -11,14 +12,25 @@ app.use((req, res, next) => {
   res.header('Cross-Origin-Opener-Policy', 'same-origin-allow-popups');
   next();
 });
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ limit: '50mb', extended: true }));
+app.use(express.json({ limit: '200mb' }));
+app.use(express.urlencoded({ limit: '200mb', extended: true }));
+
+// Expose uploaded proctoring videos for playback/download.
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // MongoDB Connection
 console.log('Attempting to connect to MongoDB...');
-console.log('Connection string:', process.env.MONGODB_URI.substring(0, 50) + '...');
+const mongodbUri = process.env.MONGODB_URI;
 
-mongoose.connect(process.env.MONGODB_URI, {
+if (!mongodbUri) {
+  console.error('❌ Missing required environment variable: MONGODB_URI');
+  console.error('Create server/.env from server/.env.example and set MONGODB_URI.');
+  process.exit(1);
+}
+
+console.log('Connection string:', mongodbUri.substring(0, 50) + '...');
+
+mongoose.connect(mongodbUri, {
   serverSelectionTimeoutMS: 5000,
   socketTimeoutMS: 45000,
 })
