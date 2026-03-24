@@ -7,6 +7,7 @@ import Profile from "./Page/Profile"
 import Behavioural from "./Page/Behavioral"
 import Technical from "./Page/Technical"
 import DSA from "./Page/DSA"
+import DSAInterview from "./Page/DSAInterview"
 import BehavioralInterview from "./Page/BehavioralInterview"
 import EvaluationResults from "./Page/EvaluationResults"
 import ScoreTracker from "./Page/ScoreTracker"
@@ -22,6 +23,7 @@ function App() {
         <Route path="/behavioural" element={<Behavioural />} />
         <Route path="/technical" element={<Technical />} />
         <Route path="/dsa" element={<DSA />} />
+        <Route path="/dsa-interview" element={<DSAInterview />} />
         <Route path="/behavioral-interview" element={<BehavioralInterview />} />
         <Route path="/evaluation-results" element={<EvaluationResults />} />
         <Route path="/score-tracker" element={<ScoreTracker />} />
