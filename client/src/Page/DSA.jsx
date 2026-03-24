@@ -3,7 +3,7 @@ import HomePageNavbar from "../components/HomePageNavbar"
 import { useNavigate } from "react-router-dom"
 import { Rocket, Briefcase, Chart, Bulb, Megaphone, Phone, Laptop, ThumbsUp, ImageIcon, D } from "../components/Doodles"
 
-export default function TechnicalInstructions(){
+export default function DSAInstructions(){
 
 const navigate = useNavigate()
 const camRef = useRef(null)
@@ -544,7 +544,7 @@ const instructions = [
   },
   {
     icon: icons.bolt,
-    label: "Single Attempt Coding Round",
+    label: "Single Attempt DSA Round",
     sub: "The coding challenge must be completed in one session without pausing."
   },
   {
@@ -589,7 +589,7 @@ return(
     <div className="assessment-card">
 
       <div className="assessment-name">
-        Technical Interview | Coding Assessment
+        DSA Interview | Coding Assessment
       </div>
 
       <div className="assessment-info">
@@ -604,7 +604,7 @@ return(
 
       <div className="assessment-info">
         <span>Total Questions</span>
-        <strong>3</strong>
+        <strong>5</strong>
       </div>
 
     </div>
@@ -618,7 +618,7 @@ return(
     </div>
 
     <div className="section-desc">
-      Read the following guidelines carefully before beginning the technical interview.
+      Read the following guidelines carefully before beginning the DSA interview.
     </div>
 
     <ul className="instructions">
@@ -731,7 +731,7 @@ return(
           className="start-btn"
           disabled={!checksCompleted || !fullEnabled}
           onClick={async () => {
-            // Release camera/mic so Technical Interview can re-acquire it cleanly
+            // Release camera/mic so DSA Interview can re-acquire it cleanly
             if (camRef.current?.srcObject) {
               camRef.current.srcObject.getTracks().forEach(t => t.stop())
               camRef.current.srcObject = null
@@ -758,10 +758,10 @@ return(
             // Keep screen-share stream alive and pass it to interview page
             // to avoid prompting the user again.
             window.__goalnowScreenStream = screenStream
-            navigate("/technical-interview")
+            navigate("/dsa-interview")
           }}
         >
-          Start Coding Round
+          Start DSA Round
           <svg viewBox="0 0 24 24"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
         </button>
       </div>

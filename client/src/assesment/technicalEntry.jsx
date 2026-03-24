@@ -424,7 +424,7 @@ border-radius:50%;
 background:#e0e0e0;
 }
 
-.readiness-dot.lit{
+.readiness-dot.lit{ 
 background:#34a853;
 box-shadow:0 0 0 3px rgba(52,168,83,0.15);
 }
