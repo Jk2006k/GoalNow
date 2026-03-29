@@ -1,116 +1,134 @@
 /**
- * Mock JavaScript code executor.
- * Extracts the user-defined function from the editor and runs it
- * against each test case using the problem's validator.
+ * Mock code executor for DSA round.
+ * Safely evaluates JavaScript solutions against test cases using Function constructor.
+ * Python execution is simulated (mock) since there's no Python runtime in the browser.
  */
 
 /**
- * Attempts to extract a named function or arrow-function assigned to a var
- * from the user's code string, then calls it via the problem validator.
- *
- * @param {string} code       - Raw JS source written by the user
- * @param {object} problem    - Problem object (contains testCases + validator)
- * @returns {Array<{id, passed, input, expected, actual, error}>}
+ * Deep equality check for comparing expected vs actual outputs
  */
-export function runJavaScriptCode(code, problem) {
-  return problem.testCases.map((tc, idx) => {
-    try {
-      // Build a sandboxed function from the user's code.
-      // We wrap in an IIFE that returns the last declared function name.
-      // eslint-disable-next-line no-new-func
-      const factory = new Function(`
-        ${code}
-        // detect & return function reference
-        const fnNames = Object.getOwnPropertyNames(this).filter(
-          k => typeof this[k] === 'function'
-        );
-        // Try common function name patterns
-        const candidates = [
-          typeof twoSum !== 'undefined' && twoSum,
-          typeof reverseString !== 'undefined' && reverseString,
-          typeof isValid !== 'undefined' && isValid,
-          typeof maxSubArray !== 'undefined' && maxSubArray,
-        ].filter(Boolean);
-        return candidates[0] || null;
-      `);
-
-      // Execute in an empty object context so "this" is a plain obj.
-      const userFn = factory.call({});
-
-      if (typeof userFn !== "function") {
-        throw new Error(
-          "Could not detect your function. Make sure it matches the starter code signature."
-        );
-      }
-
-      const passed = problem.validator(userFn, tc.input);
-
-      // Compute actual output for display
-      let actual;
-      try {
-        actual = userFn(
-          ...Object.values(tc.input).map((v) =>
-            Array.isArray(v) ? [...v] : v
-          )
-        );
-      } catch {
-        actual = "Runtime Error";
-      }
-
-      return {
-        id: idx + 1,
-        passed,
-        input: tc.input,
-        expected: tc.expected,
-        actual,
-        error: null,
-      };
-    } catch (err) {
-      return {
-        id: idx + 1,
-        passed: false,
-        input: tc.input,
-        expected: tc.expected,
-        actual: null,
-        error: err.message,
-      };
-    }
-  });
+function deepEqual(a, b) {
+  if (a === b) return true;
+  if (a === null || b === null) return a === b;
+  if (typeof a !== typeof b) return false;
+  if (Array.isArray(a) && Array.isArray(b)) {
+    if (a.length !== b.length) return false;
+    return a.every((v, i) => deepEqual(v, b[i]));
+  }
+  if (typeof a === "object" && typeof b === "object") {
+    const keysA = Object.keys(a).sort();
+    const keysB = Object.keys(b).sort();
+    if (keysA.length !== keysB.length) return false;
+    return keysA.every((k) => deepEqual(a[k], b[k]));
+  }
+  return false;
 }
 
 /**
- * Mock Python executor — since we cannot run Python in the browser,
- * we parse the code lightly and return a "mock" result with a notice.
+ * Serialize a value to a display string
  */
-export function runPythonCode(code, problem) {
-  // Very basic syntax check: look for the def line
-  const hasDef = /^\s*def\s+\w+\s*\(/.test(code);
-  if (!hasDef) {
-    return problem.testCases.map((tc, idx) => ({
-      id: idx + 1,
-      passed: false,
-      input: tc.input,
-      expected: tc.expected,
-      actual: null,
-      error: "No function definition found. Make sure your Python function is defined correctly.",
-    }));
+function serialize(val) {
+  if (val === undefined) return "undefined";
+  if (val === null) return "null";
+  return JSON.stringify(val);
+}
+
+/**
+ * Execute JavaScript code against test cases
+ */
+function executeJavaScript(code, problem) {
+  const results = [];
+
+  for (const tc of problem.testCases) {
+    const startTime = performance.now();
+    try {
+      // Build argument list from paramNames
+      const args = problem.paramNames.map((p) =>
+        JSON.parse(JSON.stringify(tc.input[p]))
+      );
+
+      // Wrap code + call in an IIFE executed via Function
+      const wrappedCode = `
+        "use strict";
+        ${code}
+        return ${problem.functionName}(${args
+        .map((_, i) => `__args__[${i}]`)
+        .join(", ")});
+      `;
+
+      // eslint-disable-next-line no-new-func
+      const fn = new Function("__args__", wrappedCode);
+      const output = fn(args);
+      const elapsed = (performance.now() - startTime).toFixed(2);
+
+      const passed = deepEqual(output, tc.expected);
+      results.push({
+        passed,
+        input: problem.paramNames
+          .map((p) => `${p} = ${serialize(tc.input[p])}`)
+          .join(", "),
+        expected: serialize(tc.expected),
+        output: serialize(output),
+        runtime: `${elapsed} ms`,
+        error: null,
+      });
+    } catch (err) {
+      const elapsed = (performance.now() - startTime).toFixed(2);
+      results.push({
+        passed: false,
+        input: problem.paramNames
+          .map((p) => `${p} = ${serialize(tc.input[p])}`)
+          .join(", "),
+        expected: serialize(tc.expected),
+        output: "Error",
+        runtime: `${elapsed} ms`,
+        error: err.message,
+      });
+    }
   }
 
-  // Simulate: we can't truly execute Python here.
-  // Return mock "pending" results to inform the user.
-  return problem.testCases.map((tc, idx) => ({
-    id: idx + 1,
-    passed: null, // null = "mock / not executed"
-    input: tc.input,
-    expected: tc.expected,
-    actual: "⚠ Python execution is simulated in the browser",
+  return results;
+}
+
+/**
+ * Mock Python executor — returns simulated results with a note
+ */
+function executePython(code, problem) {
+  return problem.testCases.map((tc) => ({
+    passed: null, // null = simulated / unknown
+    input: problem.paramNames
+      .map((p) => `${p} = ${serialize(tc.input[p])}`)
+      .join(", "),
+    expected: serialize(tc.expected),
+    output: "⚠ Python execution is simulated in the browser",
+    runtime: "N/A",
     error: null,
-    mock: true,
+    simulated: true,
   }));
 }
 
-export function runCode(language, code, problem) {
-  if (language === "javascript") return runJavaScriptCode(code, problem);
-  if (language === "python") return runPythonCode(code, problem);
+/**
+ * Main executor entry point
+ */
+export function executeCode(code, language, problem) {
+  if (!code || !code.trim()) {
+    return problem.testCases.map((tc) => ({
+      passed: false,
+      input: problem.paramNames
+        .map((p) => `${p} = ${serialize(tc.input[p])}`)
+        .join(", "),
+      expected: serialize(tc.expected),
+      output: "No code provided",
+      runtime: "0 ms",
+      error: "Please write your solution before running.",
+    }));
+  }
+
+  if (language === "javascript") {
+    return executeJavaScript(code, problem);
+  } else if (language === "python") {
+    return executePython(code, problem);
+  }
+
   return [];
 }
