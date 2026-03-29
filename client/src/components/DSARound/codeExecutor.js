@@ -1,174 +1,125 @@
 /**
  * codeExecutor.js
  *
- * Alternative code executor for the DSA Round feature.
+ * Alternative code execution pipeline for the DSA Round.
  *
  * Differences from codeRunner.js:
- *   - Detects the target function name from the problem's `starterCode`
- *     instead of scanning the user's submitted code.
- *   - Supports a per-problem `validator(result, expected)` function for
- *     fully custom comparison logic (optional; falls back to the same
- *     data-driven strategy used in codeRunner).
- *
- * ⚠️  Security note: see codeRunner.js for sandbox caveats.
+ *  - Detects the user's function via a regex scan (useful when the function
+ *    name might differ from problem.functionName as a fallback).
+ *  - Uses the same data-driven checkEquality from codeRunner so both runners
+ *    share identical comparison semantics.
+ *  - Delegates all special-case comparison logic to the problem definition
+ *    (orderInsensitive, normalizeResult) — no hard-coded per-problem branches.
  */
 
+import { checkEquality } from "./codeRunner";
+
 /**
- * Derive the expected function name from a problem's starter code.
- * Falls back to scanning the user-submitted code if the starter code has
- * no function declaration.
+ * Detect the first function name declared in a code string.
+ * Handles `function foo(`, `const foo = (`, `const foo = function(`, arrow fns.
  *
- * @param {Object} problem  - Problem definition (must include `starterCode`)
- * @param {string} userCode - User-submitted code (fallback)
+ * @param {string} code
  * @returns {string|null}
  */
-function resolveFunctionName(problem, userCode) {
-  const scan = (src) => {
-    const m = src.match(/function\s+([a-zA-Z_$][a-zA-Z0-9_$]*)\s*\(/);
-    return m ? m[1] : null;
-  };
-  return scan(problem.starterCode) || scan(userCode);
+function detectFunctionName(code) {
+  const patterns = [
+    /function\s+([a-zA-Z_$][a-zA-Z0-9_$]*)\s*\(/,
+    /(?:const|let|var)\s+([a-zA-Z_$][a-zA-Z0-9_$]*)\s*=\s*(?:function|\(|[a-zA-Z_$])/,
+  ];
+
+  for (const pattern of patterns) {
+    const match = code.match(pattern);
+    if (match) return match[1];
+  }
+
+  return null;
 }
 
 /**
- * Compare a result against an expected value.
+ * Execute user code against all test cases for a problem.
  *
- * Priority order:
- *  1. `problem.validator(result, expected)` — fully custom comparison function
- *     defined on the problem object.
- *  2. `problem.normalizeResult(value)` — normalize both sides, then compare.
- *  3. `problem.orderInsensitive` — sort both arrays, then compare.
- *  4. JSON.stringify deep equality (default).
+ * Prefers `problem.functionName` for the call; falls back to auto-detection
+ * if the declared name differs.
  *
- * @param {*}      result
- * @param {*}      expected
- * @param {Object} problem
- * @returns {boolean}
+ * @param {string} code
+ * @param {Object} problem - problem definition from problems.js
+ * @returns {{ results: Array, passed: number, total: number, error: string|null }}
  */
-function compareResult(result, expected, problem) {
-  if (result === null || result === undefined) return false;
+export function executeCode(code, problem) {
+  // Determine which function name to call
+  const preferredName = problem.functionName;
+  const detectedName = detectFunctionName(code);
+  const fnName = preferredName || detectedName;
 
-  // 1. Fully custom validator (takes precedence over everything else)
-  if (problem && typeof problem.validator === "function") {
-    return problem.validator(result, expected);
+  if (!fnName) {
+    return {
+      results: [],
+      passed: 0,
+      total: problem.testCases.length,
+      error:
+        "Could not detect a function in your code. Please define a function to solve the problem.",
+    };
   }
 
-  // 2. Custom normalization hook
-  if (problem && typeof problem.normalizeResult === "function") {
-    return (
-      JSON.stringify(problem.normalizeResult(result)) ===
-      JSON.stringify(problem.normalizeResult(expected))
-    );
-  }
-
-  // 3. Order-insensitive array comparison
-  if (
-    problem &&
-    problem.orderInsensitive &&
-    Array.isArray(result) &&
-    Array.isArray(expected)
-  ) {
-    if (result.length !== expected.length) return false;
-    const sort = (arr) =>
-      [...arr].sort((a, b) => {
-        if (a < b) return -1;
-        if (a > b) return 1;
-        return 0;
-      });
-    return JSON.stringify(sort(result)) === JSON.stringify(sort(expected));
-  }
-
-  // 4. Default deep equality
-  return JSON.stringify(result) === JSON.stringify(expected);
-}
-
-/**
- * Execute user code against a single test case.
- *
- * @param {string} userCode  - User's JavaScript source
- * @param {Object} problem   - Problem definition
- * @param {Object} testCase  - { input: Array, expected: * }
- * @returns {{ passed: boolean, result: *, error: string|null }}
- */
-function executeTestCase(userCode, problem, testCase) {
+  // Build the user function
+  let userFn;
   try {
-    const fnName = resolveFunctionName(problem, userCode);
-    if (!fnName) {
-      return {
-        passed: false,
-        result: undefined,
-        error:
-          "Could not detect a function name from the starter code or your submission. Make sure your solution defines a named function.",
-      };
-    }
-
     // eslint-disable-next-line no-new-func
-    const executor = new Function(
-      "__args__",
-      `
-      ${userCode}
-      return ${fnName}.apply(null, __args__);
-    `
-    );
-
-    const result = executor(testCase.input);
-    const passed = compareResult(result, testCase.expected, problem);
-
-    return { passed, result, error: null };
+    userFn = new Function(
+      `${code}; return typeof ${fnName} !== 'undefined' ? ${fnName} : undefined;`
+    )();
   } catch (err) {
     return {
-      passed: false,
-      result: undefined,
-      error: err.message || String(err),
+      results: [],
+      passed: 0,
+      total: problem.testCases.length,
+      error: `Syntax error: ${err.message}`,
     };
   }
-}
 
-/**
- * Execute user code against every test case in a problem.
- *
- * @param {string} userCode - User's JavaScript source
- * @param {Object} problem  - Problem definition (must include `testCases`)
- * @returns {{
- *   totalTests:  number,
- *   passedTests: number,
- *   allPassed:   boolean,
- *   results: Array<{
- *     testIndex: number,
- *     input:     *,
- *     expected:  *,
- *     result:    *,
- *     passed:    boolean,
- *     error:     string|null
- *   }>
- * }}
- */
-function executeAllTests(userCode, problem) {
-  const results = problem.testCases.map((tc, index) => {
-    const { passed, result, error } = executeTestCase(userCode, problem, tc);
+  if (typeof userFn !== "function") {
     return {
-      testIndex: index,
-      input: tc.input,
-      expected: tc.expected,
-      result,
-      passed,
-      error,
+      results: [],
+      passed: 0,
+      total: problem.testCases.length,
+      error: `Function "${fnName}" was not found after evaluation. Make sure it is declared at the top level.`,
     };
-  });
+  }
 
-  const passedTests = results.filter((r) => r.passed).length;
+  const results = [];
+
+  for (let i = 0; i < problem.testCases.length; i++) {
+    const { input, expected } = problem.testCases[i];
+    let result;
+    let caseError = null;
+
+    try {
+      result = userFn(...input);
+    } catch (err) {
+      caseError = err.message;
+    }
+
+    // Use the shared, data-driven equality checker — no per-problem branches here
+    const passed = caseError
+      ? false
+      : checkEquality(result, expected, problem);
+
+    results.push({
+      testCase: i + 1,
+      input,
+      expected,
+      result: caseError ? null : result,
+      passed,
+      error: caseError,
+    });
+  }
+
+  const passed = results.filter((r) => r.passed).length;
 
   return {
-    totalTests: results.length,
-    passedTests,
-    allPassed: passedTests === results.length,
     results,
+    passed,
+    total: problem.testCases.length,
+    error: null,
   };
 }
-
-export {
-  executeAllTests,
-  executeTestCase,
-  compareResult,
-  resolveFunctionName,
-};
