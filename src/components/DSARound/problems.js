@@ -5,7 +5,7 @@ export const problems = [
     title: "Two Sum",
     difficulty: "Easy",
     category: "Array",
-    description: `Given an array of integers \`nums\` and an integer \`target\`, return indices of the two numbers such that they add up to \`target\`.
+    description: `Given an array of integers \`nums\` and an integer \`target\`, return *indices of the two numbers such that they add up to target*.
 
 You may assume that each input would have **exactly one solution**, and you may not use the same element twice.
 
@@ -32,7 +32,7 @@ You can return the answer in any order.`,
       { input: { nums: [2, 7, 11, 15], target: 9 }, expected: [0, 1] },
       { input: { nums: [3, 2, 4], target: 6 }, expected: [1, 2] },
       { input: { nums: [3, 3], target: 6 }, expected: [0, 1] },
-      { input: { nums: [1, 4, 5, 7], target: 9 }, expected: [1, 3] },
+      { input: { nums: [1, 5, 3, 7], target: 8 }, expected: [1, 3] },
     ],
     starterCode: {
       javascript: `/**
@@ -58,13 +58,99 @@ function twoSum(nums, target) {
   }
 }`,
     },
-    functionName: "twoSum",
-    paramNames: ["nums", "target"],
+    evaluator: (code, { nums, target }) => {
+      try {
+        // eslint-disable-next-line no-new-func
+        const fn = new Function(
+          "nums",
+          "target",
+          `${code}\nreturn twoSum(nums, target);`
+        );
+        return fn([...nums], target);
+      } catch (e) {
+        throw new Error(e.message);
+      }
+    },
+    compareResults: (result, expected) => {
+      if (!Array.isArray(result) || result.length !== 2) return false;
+      return (
+        (result[0] === expected[0] && result[1] === expected[1]) ||
+        (result[0] === expected[1] && result[1] === expected[0])
+      );
+    },
   },
   {
     id: 2,
-    title: "Valid Parentheses",
+    title: "Reverse String",
     difficulty: "Easy",
+    category: "String",
+    description: `Write a function that reverses a string. The input string is given as an array of characters \`s\`.
+
+You must do this by modifying the input array **in-place** with O(1) extra memory.`,
+    examples: [
+      {
+        input: 's = ["h","e","l","l","o"]',
+        output: '["o","l","l","e","h"]',
+      },
+      {
+        input: 's = ["H","a","n","n","a","h"]',
+        output: '["h","a","n","n","a","H"]',
+      },
+    ],
+    constraints: [
+      "1 <= s.length <= 10⁵",
+      "s[i] is a printable ascii character.",
+    ],
+    testCases: [
+      {
+        input: { s: ["h", "e", "l", "l", "o"] },
+        expected: ["o", "l", "l", "e", "h"],
+      },
+      {
+        input: { s: ["H", "a", "n", "n", "a", "h"] },
+        expected: ["h", "a", "n", "n", "a", "H"],
+      },
+      { input: { s: ["a"] }, expected: ["a"] },
+      {
+        input: { s: ["A", "B", "C"] },
+        expected: ["C", "B", "A"],
+      },
+    ],
+    starterCode: {
+      javascript: `/**
+ * @param {character[]} s
+ * @return {void} Do not return anything, modify s in-place instead.
+ */
+function reverseString(s) {
+  // Write your solution here
+  
+};`,
+      python: `def reverseString(s):
+    # Write your solution here (modify in-place)
+    pass`,
+    },
+    evaluator: (code, { s }) => {
+      try {
+        const arr = [...s];
+        // eslint-disable-next-line no-new-func
+        const fn = new Function(
+          "s",
+          `${code}\nreverseString(s); return s;`
+        );
+        return fn(arr);
+      } catch (e) {
+        throw new Error(e.message);
+      }
+    },
+    compareResults: (result, expected) => {
+      if (!Array.isArray(result)) return false;
+      return JSON.stringify(result) === JSON.stringify(expected);
+    },
+  },
+  {
+    id: 3,
+    title: "Valid Parentheses",
+    difficulty: "Medium",
     category: "Stack",
     description: `Given a string \`s\` containing just the characters \`'('\`, \`')'\`, \`'{'\`, \`'}'\`, \`'['\` and \`']'\`, determine if the input string is valid.
 
@@ -101,86 +187,29 @@ function isValid(s) {
     # Write your solution here
     pass`,
     },
-    solution: {
-      javascript: `function isValid(s) {
-  const stack = [];
-  const map = { ')': '(', '}': '{', ']': '[' };
-  for (const c of s) {
-    if (!map[c]) stack.push(c);
-    else if (stack.pop() !== map[c]) return false;
-  }
-  return stack.length === 0;
-}`,
+    evaluator: (code, { s }) => {
+      try {
+        // eslint-disable-next-line no-new-func
+        const fn = new Function("s", `${code}\nreturn isValid(s);`);
+        return fn(s);
+      } catch (e) {
+        throw new Error(e.message);
+      }
     },
-    functionName: "isValid",
-    paramNames: ["s"],
-  },
-  {
-    id: 3,
-    title: "Reverse Linked List",
-    difficulty: "Easy",
-    category: "Linked List",
-    description: `Given the \`head\` of a singly linked list, reverse the list, and return the reversed list.
-
-**Note:** For this challenge, the linked list is represented as an array. Your function receives an array and should return the reversed array.`,
-    examples: [
-      {
-        input: "head = [1,2,3,4,5]",
-        output: "[5,4,3,2,1]",
-      },
-      {
-        input: "head = [1,2]",
-        output: "[2,1]",
-      },
-      {
-        input: "head = []",
-        output: "[]",
-      },
-    ],
-    constraints: [
-      "The number of nodes in the list is the range [0, 5000].",
-      "-5000 <= Node.val <= 5000",
-    ],
-    testCases: [
-      { input: { head: [1, 2, 3, 4, 5] }, expected: [5, 4, 3, 2, 1] },
-      { input: { head: [1, 2] }, expected: [2, 1] },
-      { input: { head: [] }, expected: [] },
-      { input: { head: [1] }, expected: [1] },
-    ],
-    starterCode: {
-      javascript: `/**
- * @param {number[]} head
- * @return {number[]}
- */
-function reverseList(head) {
-  // Write your solution here
-  
-};`,
-      python: `def reverseList(head):
-    # Write your solution here
-    pass`,
-    },
-    solution: {
-      javascript: `function reverseList(head) {
-  return head.reverse();
-}`,
-    },
-    functionName: "reverseList",
-    paramNames: ["head"],
+    compareResults: (result, expected) => result === expected,
   },
   {
     id: 4,
     title: "Maximum Subarray",
     difficulty: "Medium",
     category: "Dynamic Programming",
-    description: `Given an integer array \`nums\`, find the subarray with the largest sum, and return its sum.
-
-A **subarray** is a contiguous non-empty sequence of elements within an array.`,
+    description: `Given an integer array \`nums\`, find the **subarray** with the largest sum, and return *its sum*.`,
     examples: [
       {
         input: "nums = [-2,1,-3,4,-1,2,1,-5,4]",
         output: "6",
-        explanation: "The subarray [4,-1,2,1] has the largest sum 6.",
+        explanation:
+          "The subarray [4,-1,2,1] has the largest sum 6.",
       },
       {
         input: "nums = [1]",
@@ -214,80 +243,18 @@ function maxSubArray(nums) {
     # Write your solution here
     pass`,
     },
-    solution: {
-      javascript: `function maxSubArray(nums) {
-  let maxSum = nums[0], current = nums[0];
-  for (let i = 1; i < nums.length; i++) {
-    current = Math.max(nums[i], current + nums[i]);
-    maxSum = Math.max(maxSum, current);
-  }
-  return maxSum;
-}`,
+    evaluator: (code, { nums }) => {
+      try {
+        // eslint-disable-next-line no-new-func
+        const fn = new Function(
+          "nums",
+          `${code}\nreturn maxSubArray(nums);`
+        );
+        return fn([...nums]);
+      } catch (e) {
+        throw new Error(e.message);
+      }
     },
-    functionName: "maxSubArray",
-    paramNames: ["nums"],
-  },
-  {
-    id: 5,
-    title: "Binary Search",
-    difficulty: "Easy",
-    category: "Binary Search",
-    description: `Given an array of integers \`nums\` which is sorted in ascending order, and an integer \`target\`, write a function to search \`target\` in \`nums\`. If \`target\` exists, then return its index. Otherwise, return \`-1\`.
-
-You must write an algorithm with **O(log n)** runtime complexity.`,
-    examples: [
-      {
-        input: "nums = [-1,0,3,5,9,12], target = 9",
-        output: "4",
-        explanation: "9 exists in nums and its index is 4",
-      },
-      {
-        input: "nums = [-1,0,3,5,9,12], target = 2",
-        output: "-1",
-        explanation: "2 does not exist in nums so return -1",
-      },
-    ],
-    constraints: [
-      "1 <= nums.length <= 10⁴",
-      "-10⁴ < nums[i], target < 10⁴",
-      "All the integers in nums are unique.",
-      "nums is sorted in ascending order.",
-    ],
-    testCases: [
-      { input: { nums: [-1, 0, 3, 5, 9, 12], target: 9 }, expected: 4 },
-      { input: { nums: [-1, 0, 3, 5, 9, 12], target: 2 }, expected: -1 },
-      { input: { nums: [5], target: 5 }, expected: 0 },
-      { input: { nums: [1, 3, 5, 7, 9], target: 7 }, expected: 3 },
-    ],
-    starterCode: {
-      javascript: `/**
- * @param {number[]} nums
- * @param {number} target
- * @return {number}
- */
-function search(nums, target) {
-  // Write your solution here
-  
-};`,
-      python: `def search(nums, target):
-    # Write your solution here
-    pass`,
-    },
-    solution: {
-      javascript: `function search(nums, target) {
-  let left = 0, right = nums.length - 1;
-  while (left <= right) {
-    const mid = Math.floor((left + right) / 2);
-    if (nums[mid] === target) return mid;
-    else if (nums[mid] < target) left = mid + 1;
-    else right = mid - 1;
-  }
-  return -1;
-}`,
-    },
-    functionName: "search",
-    paramNames: ["nums", "target"],
+    compareResults: (result, expected) => result === expected,
   },
 ];
-
-export default problems;
