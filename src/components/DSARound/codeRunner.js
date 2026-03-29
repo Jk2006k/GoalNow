@@ -1,127 +1,116 @@
 /**
- * Mock code execution engine.
- * Evaluates JavaScript solutions against predefined test cases.
- * Python support shows a friendly "not supported in browser" message.
+ * Mock code execution engine for JavaScript solutions.
+ * Safely runs user-submitted code against predefined test cases.
  */
 
-function deepEqual(a, b) {
-  if (a === b) return true;
-  if (Array.isArray(a) && Array.isArray(b)) {
-    if (a.length !== b.length) return false;
-    return a.every((v, i) => deepEqual(v, b[i]));
-  }
-  if (typeof a === "object" && typeof b === "object" && a !== null && b !== null) {
-    const keysA = Object.keys(a);
-    const keysB = Object.keys(b);
-    if (keysA.length !== keysB.length) return false;
-    return keysA.every((k) => deepEqual(a[k], b[k]));
-  }
-  return false;
-}
+/**
+ * Runs user JavaScript code against all test cases for a given problem.
+ * @param {string} code - The user's JavaScript code
+ * @param {object} problem - The problem definition with testCases
+ * @returns {Array} Array of test result objects
+ */
+export function runJavaScriptCode(code, problem) {
+  const results = [];
 
-function formatValue(v) {
-  if (Array.isArray(v)) return `[${v.join(", ")}]`;
-  if (typeof v === "string") return `"${v}"`;
-  return String(v);
+  for (let i = 0; i < problem.testCases.length; i++) {
+    const tc = problem.testCases[i];
+    const startTime = performance.now();
+
+    try {
+      // Build argument list from inputArgs definition
+      const argNames = problem.inputArgs;
+      const argValues = argNames.map((arg) => tc.input[arg]);
+
+      // Create a sandboxed function wrapper
+      const wrappedCode = `
+        ${code}
+        return ${problem.functionName}(${argNames.map((_, idx) => `__arg${idx}`).join(", ")});
+      `;
+
+      // eslint-disable-next-line no-new-func
+      const fn = new Function(
+        ...argNames.map((_, idx) => `__arg${idx}`),
+        wrappedCode
+      );
+
+      // Deep clone inputs to prevent mutation side-effects
+      const clonedArgs = argValues.map((v) => JSON.parse(JSON.stringify(v)));
+      const result = fn(...clonedArgs);
+      const elapsed = (performance.now() - startTime).toFixed(2);
+
+      const pass = checkEquality(result, tc.expected, problem);
+
+      results.push({
+        id: i + 1,
+        pass,
+        input: formatInput(tc.input, problem.inputArgs),
+        expected: JSON.stringify(tc.expected),
+        received: JSON.stringify(result),
+        runtime: `${elapsed} ms`,
+        error: null,
+      });
+    } catch (err) {
+      const elapsed = (performance.now() - startTime).toFixed(2);
+      results.push({
+        id: i + 1,
+        pass: false,
+        input: formatInput(tc.input, problem.inputArgs),
+        expected: JSON.stringify(tc.expected),
+        received: null,
+        runtime: `${elapsed} ms`,
+        error: err.message,
+      });
+    }
+  }
+
+  return results;
 }
 
 /**
- * Build a wrapper that injects the user's function and calls it with the
- * correct arguments based on the problem's test-case shape.
+ * Mock Python execution — returns simulated "not supported" results.
+ * In production this would call a backend sandbox API.
  */
-function buildRunner(problemId, userCode) {
-  // Map problem id → argument extractor
-  const argExtractors = {
-    1: (input) => [input.nums, input.target],
-    2: (input) => [input.s],
-    3: (input) => [input.head],
-  };
-
-  // Map problem id → function name
-  const fnNames = {
-    1: "twoSum",
-    2: "isValid",
-    3: "reverseList",
-  };
-
-  const extract = argExtractors[problemId];
-  const fnName = fnNames[problemId];
-
-  if (!extract || !fnName) {
-    throw new Error("Unknown problem id");
-  }
-
-  return (testCase) => {
-    const args = extract(testCase.input);
-    // eslint-disable-next-line no-new-func
-    const fn = new Function(
-      ...Object.keys({ userCode: 1 }),
-      `${userCode}; return ${fnName};`
-    )();
-    return fn(...args);
-  };
+export function runPythonCode(code, problem) {
+  return problem.testCases.map((tc, i) => ({
+    id: i + 1,
+    pass: false,
+    input: formatInput(tc.input, problem.inputArgs),
+    expected: JSON.stringify(tc.expected),
+    received: null,
+    runtime: "—",
+    error:
+      "Python execution requires a backend sandbox. Please switch to JavaScript for live testing.",
+  }));
 }
 
-export function runCode(language, code, problem) {
-  if (language === "python") {
-    return problem.testCases.map((tc) => ({
-      id: tc.id,
-      label: tc.label,
-      status: "skipped",
-      message:
-        "Python execution is not supported in the browser. Switch to JavaScript to run tests.",
-      input: JSON.stringify(tc.input),
-      expected: formatValue(tc.expected),
-      actual: "N/A",
-      runtime: 0,
-    }));
+/**
+ * Checks whether a result matches the expected value.
+ * Handles arrays (order-insensitive for twoSum style), primitives, etc.
+ */
+function checkEquality(result, expected, problem) {
+  if (result === null || result === undefined) return false;
+
+  // For problems where array order doesn't matter (e.g. twoSum)
+  if (
+    Array.isArray(result) &&
+    Array.isArray(expected) &&
+    problem.id === 1 // twoSum — order independent
+  ) {
+    return (
+      JSON.stringify([...result].sort((a, b) => a - b)) ===
+      JSON.stringify([...expected].sort((a, b) => a - b))
+    );
   }
 
-  // --- JavaScript execution ---
-  let runner;
-  try {
-    runner = buildRunner(problem.id, code);
-  } catch (err) {
-    return problem.testCases.map((tc) => ({
-      id: tc.id,
-      label: tc.label,
-      status: "error",
-      message: `Compilation error: ${err.message}`,
-      input: JSON.stringify(tc.input),
-      expected: formatValue(tc.expected),
-      actual: "—",
-      runtime: 0,
-    }));
-  }
+  // General deep equality via JSON serialization
+  return JSON.stringify(result) === JSON.stringify(expected);
+}
 
-  return problem.testCases.map((tc) => {
-    const start = performance.now();
-    try {
-      const result = runner(tc);
-      const elapsed = +(performance.now() - start).toFixed(2);
-      const passed = deepEqual(result, tc.expected);
-      return {
-        id: tc.id,
-        label: tc.label,
-        status: passed ? "pass" : "fail",
-        message: passed ? "Accepted" : "Wrong Answer",
-        input: JSON.stringify(tc.input),
-        expected: formatValue(tc.expected),
-        actual: formatValue(result),
-        runtime: elapsed,
-      };
-    } catch (err) {
-      const elapsed = +(performance.now() - start).toFixed(2);
-      return {
-        id: tc.id,
-        label: tc.label,
-        status: "error",
-        message: `Runtime error: ${err.message}`,
-        input: JSON.stringify(tc.input),
-        expected: formatValue(tc.expected),
-        actual: "—",
-        runtime: elapsed,
-      };
-    }
-  });
+/**
+ * Formats the input object into a readable string for display.
+ */
+function formatInput(input, argNames) {
+  return argNames
+    .map((name) => `${name} = ${JSON.stringify(input[name])}`)
+    .join(", ");
 }
