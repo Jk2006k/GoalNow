@@ -1,5 +1,4 @@
 // Predefined DSA problems with test cases
-
 export const problems = [
   {
     id: 1,
@@ -22,24 +21,18 @@ You can return the answer in any order.`,
         output: "[1,2]",
         explanation: "Because nums[1] + nums[2] == 6, we return [1, 2].",
       },
-      {
-        input: "nums = [3,3], target = 6",
-        output: "[0,1]",
-        explanation: "Because nums[0] + nums[1] == 6, we return [0, 1].",
-      },
     ],
     constraints: [
-      "2 ≤ nums.length ≤ 10⁴",
-      "-10⁹ ≤ nums[i] ≤ 10⁹",
-      "-10⁹ ≤ target ≤ 10⁹",
+      "2 <= nums.length <= 10⁴",
+      "-10⁹ <= nums[i] <= 10⁹",
+      "-10⁹ <= target <= 10⁹",
       "Only one valid answer exists.",
     ],
     testCases: [
       { input: { nums: [2, 7, 11, 15], target: 9 }, expected: [0, 1] },
       { input: { nums: [3, 2, 4], target: 6 }, expected: [1, 2] },
       { input: { nums: [3, 3], target: 6 }, expected: [0, 1] },
-      { input: { nums: [1, 5, 3, 7], target: 8 }, expected: [1, 3] },
-      { input: { nums: [-1, -2, -3, -4, -5], target: -8 }, expected: [2, 4] },
+      { input: { nums: [1, 4, 5, 7], target: 9 }, expected: [1, 3] },
     ],
     starterCode: {
       javascript: `/**
@@ -55,17 +48,18 @@ function twoSum(nums, target) {
     # Write your solution here
     pass`,
     },
-    solutionValidator: `
-      function validate(fn, input) {
-        const result = fn(input.nums, input.target);
-        return JSON.stringify(result.sort((a,b)=>a-b));
-      }
-      function expectedStr(expected) {
-        return JSON.stringify(expected.sort((a,b)=>a-b));
-      }
-    `,
+    solution: {
+      javascript: `function twoSum(nums, target) {
+  const map = new Map();
+  for (let i = 0; i < nums.length; i++) {
+    const complement = target - nums[i];
+    if (map.has(complement)) return [map.get(complement), i];
+    map.set(nums[i], i);
+  }
+}`,
+    },
     functionName: "twoSum",
-    inputArgs: ["nums", "target"],
+    paramNames: ["nums", "target"],
   },
   {
     id: 2,
@@ -79,12 +73,12 @@ An input string is valid if:
 2. Open brackets must be closed in the correct order.
 3. Every close bracket has a corresponding open bracket of the same type.`,
     examples: [
-      { input: 's = "()"', output: "true", explanation: "" },
-      { input: 's = "()[]{}"', output: "true", explanation: "" },
-      { input: 's = "(]"', output: "false", explanation: "" },
+      { input: 's = "()"', output: "true" },
+      { input: 's = "()[]{}"', output: "true" },
+      { input: 's = "(]"', output: "false" },
     ],
     constraints: [
-      "1 ≤ s.length ≤ 10⁴",
+      "1 <= s.length <= 10⁴",
       "s consists of parentheses only '()[]{}'.",
     ],
     testCases: [
@@ -107,8 +101,19 @@ function isValid(s) {
     # Write your solution here
     pass`,
     },
+    solution: {
+      javascript: `function isValid(s) {
+  const stack = [];
+  const map = { ')': '(', '}': '{', ']': '[' };
+  for (const c of s) {
+    if (!map[c]) stack.push(c);
+    else if (stack.pop() !== map[c]) return false;
+  }
+  return stack.length === 0;
+}`,
+    },
     functionName: "isValid",
-    inputArgs: ["s"],
+    paramNames: ["s"],
   },
   {
     id: 3,
@@ -117,30 +122,34 @@ function isValid(s) {
     category: "Linked List",
     description: `Given the \`head\` of a singly linked list, reverse the list, and return the reversed list.
 
-For this problem, the linked list is represented as an array for simplicity. Return the reversed array.`,
+**Note:** For this challenge, the linked list is represented as an array. Your function receives an array and should return the reversed array.`,
     examples: [
       {
         input: "head = [1,2,3,4,5]",
         output: "[5,4,3,2,1]",
-        explanation: "",
       },
-      { input: "head = [1,2]", output: "[2,1]", explanation: "" },
-      { input: "head = []", output: "[]", explanation: "" },
+      {
+        input: "head = [1,2]",
+        output: "[2,1]",
+      },
+      {
+        input: "head = []",
+        output: "[]",
+      },
     ],
     constraints: [
       "The number of nodes in the list is the range [0, 5000].",
-      "-5000 ≤ Node.val ≤ 5000",
+      "-5000 <= Node.val <= 5000",
     ],
     testCases: [
       { input: { head: [1, 2, 3, 4, 5] }, expected: [5, 4, 3, 2, 1] },
       { input: { head: [1, 2] }, expected: [2, 1] },
       { input: { head: [] }, expected: [] },
       { input: { head: [1] }, expected: [1] },
-      { input: { head: [3, 1, 4, 1, 5, 9] }, expected: [9, 5, 1, 4, 1, 3] },
     ],
     starterCode: {
       javascript: `/**
- * @param {number[]} head - array representation of linked list
+ * @param {number[]} head
  * @return {number[]}
  */
 function reverseList(head) {
@@ -151,8 +160,13 @@ function reverseList(head) {
     # Write your solution here
     pass`,
     },
+    solution: {
+      javascript: `function reverseList(head) {
+  return head.reverse();
+}`,
+    },
     functionName: "reverseList",
-    inputArgs: ["head"],
+    paramNames: ["head"],
   },
   {
     id: 4,
@@ -168,23 +182,24 @@ A **subarray** is a contiguous non-empty sequence of elements within an array.`,
         output: "6",
         explanation: "The subarray [4,-1,2,1] has the largest sum 6.",
       },
-      { input: "nums = [1]", output: "1", explanation: "" },
+      {
+        input: "nums = [1]",
+        output: "1",
+      },
       {
         input: "nums = [5,4,-1,7,8]",
         output: "23",
-        explanation: "The subarray [5,4,-1,7,8] has the largest sum 23.",
       },
     ],
     constraints: [
-      "1 ≤ nums.length ≤ 10⁵",
-      "-10⁴ ≤ nums[i] ≤ 10⁴",
+      "1 <= nums.length <= 10⁵",
+      "-10⁴ <= nums[i] <= 10⁴",
     ],
     testCases: [
       { input: { nums: [-2, 1, -3, 4, -1, 2, 1, -5, 4] }, expected: 6 },
       { input: { nums: [1] }, expected: 1 },
       { input: { nums: [5, 4, -1, 7, 8] }, expected: 23 },
-      { input: { nums: [-1] }, expected: -1 },
-      { input: { nums: [-2, -1] }, expected: -1 },
+      { input: { nums: [-1, -2, -3] }, expected: -1 },
     ],
     starterCode: {
       javascript: `/**
@@ -199,8 +214,18 @@ function maxSubArray(nums) {
     # Write your solution here
     pass`,
     },
+    solution: {
+      javascript: `function maxSubArray(nums) {
+  let maxSum = nums[0], current = nums[0];
+  for (let i = 1; i < nums.length; i++) {
+    current = Math.max(nums[i], current + nums[i]);
+    maxSum = Math.max(maxSum, current);
+  }
+  return maxSum;
+}`,
+    },
     functionName: "maxSubArray",
-    inputArgs: ["nums"],
+    paramNames: ["nums"],
   },
   {
     id: 5,
@@ -214,16 +239,16 @@ You must write an algorithm with **O(log n)** runtime complexity.`,
       {
         input: "nums = [-1,0,3,5,9,12], target = 9",
         output: "4",
-        explanation: "9 exists in nums and its index is 4.",
+        explanation: "9 exists in nums and its index is 4",
       },
       {
         input: "nums = [-1,0,3,5,9,12], target = 2",
         output: "-1",
-        explanation: "2 does not exist in nums so return -1.",
+        explanation: "2 does not exist in nums so return -1",
       },
     ],
     constraints: [
-      "1 ≤ nums.length ≤ 10⁴",
+      "1 <= nums.length <= 10⁴",
       "-10⁴ < nums[i], target < 10⁴",
       "All the integers in nums are unique.",
       "nums is sorted in ascending order.",
@@ -232,8 +257,7 @@ You must write an algorithm with **O(log n)** runtime complexity.`,
       { input: { nums: [-1, 0, 3, 5, 9, 12], target: 9 }, expected: 4 },
       { input: { nums: [-1, 0, 3, 5, 9, 12], target: 2 }, expected: -1 },
       { input: { nums: [5], target: 5 }, expected: 0 },
-      { input: { nums: [5], target: 3 }, expected: -1 },
-      { input: { nums: [1, 3, 5, 7, 9, 11], target: 7 }, expected: 3 },
+      { input: { nums: [1, 3, 5, 7, 9], target: 7 }, expected: 3 },
     ],
     starterCode: {
       javascript: `/**
@@ -249,8 +273,20 @@ function search(nums, target) {
     # Write your solution here
     pass`,
     },
+    solution: {
+      javascript: `function search(nums, target) {
+  let left = 0, right = nums.length - 1;
+  while (left <= right) {
+    const mid = Math.floor((left + right) / 2);
+    if (nums[mid] === target) return mid;
+    else if (nums[mid] < target) left = mid + 1;
+    else right = mid - 1;
+  }
+  return -1;
+}`,
+    },
     functionName: "search",
-    inputArgs: ["nums", "target"],
+    paramNames: ["nums", "target"],
   },
 ];
 
