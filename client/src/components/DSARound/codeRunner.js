@@ -1,147 +1,112 @@
 /**
  * codeRunner.js
  *
- * Browser-side JavaScript code runner for the DSA Round feature.
+ * Browser-side JavaScript code runner for the DSA Round.
  *
- * ⚠️  Security note: `new Function` executes arbitrary user-supplied code in the
- * browser context.  This is intentionally scoped to a sandboxed interview
- * environment where only the submitting user's own code runs.  Do NOT expose
- * this runner on a shared/multi-tenant server without a proper sandbox (e.g.
- * Web Workers, iframe sandbox, or a server-side isolate).
+ * NOTE: This uses `new Function` which executes arbitrary user code.
+ * It is intentionally sandboxed to the browser context only and should
+ * NEVER be used server-side. There is no true sandbox here — treat this
+ * as a learning/practice tool, not a security boundary.
  */
 
 /**
- * Extract the first `function` declaration name from a source string.
- * Returns null if no named function declaration is found.
+ * Run user-submitted code against a problem's test cases.
  *
- * @param {string} code
- * @returns {string|null}
+ * @param {string} code        - The user's source code (must define `functionName`).
+ * @param {Object} problem     - A problem definition from problems.js.
+ * @returns {{ results: Array, passed: number, total: number, error: string|null }}
  */
-function extractFunctionName(code) {
-  const match = code.match(/function\s+([a-zA-Z_$][a-zA-Z0-9_$]*)\s*\(/);
-  return match ? match[1] : null;
-}
+export function runCode(code, problem) {
+  const results = [];
+  let runtimeError = null;
 
-/**
- * Run a single test case against user-supplied JavaScript code.
- *
- * @param {string}   code      - Raw JS source (must contain a named function declaration)
- * @param {Array}    inputArgs - Array of arguments spread into the function call
- * @param {*}        expected  - Expected return value
- * @param {Object}   problem   - The problem definition (used for comparison config)
- * @returns {{ passed: boolean, result: *, error: string|null }}
- */
-function runTestCase(code, inputArgs, expected, problem) {
   try {
-    const fnName = extractFunctionName(code);
-    if (!fnName) {
+    // Build a callable from the user's code.
+    // We wrap in a block so multiple var declarations don't collide.
+    // eslint-disable-next-line no-new-func
+    const userFn = new Function(
+      `${code}; return typeof ${problem.functionName} !== 'undefined' ? ${problem.functionName} : undefined;`
+    )();
+
+    if (typeof userFn !== "function") {
       return {
-        passed: false,
-        result: undefined,
-        error:
-          "Could not detect a named function declaration. Make sure your solution defines a function (e.g. `function twoSum(...) { ... }`).",
+        results: [],
+        passed: 0,
+        total: problem.testCases.length,
+        error: `Function "${problem.functionName}" was not found in your code. Make sure you define a function named exactly "${problem.functionName}".`,
       };
     }
 
-    // Build an executable wrapper that returns the function's result.
-    // The user's code is placed verbatim; we then call the extracted function.
-    // eslint-disable-next-line no-new-func
-    const executor = new Function(
-      ...["__args__"],
-      `
-      ${code}
-      return ${fnName}.apply(null, __args__);
-    `
-    );
+    for (let i = 0; i < problem.testCases.length; i++) {
+      const { input, expected } = problem.testCases[i];
+      let result;
+      let caseError = null;
 
-    const result = executor(inputArgs);
-    const passed = checkEquality(result, expected, problem);
+      try {
+        // Spread input array as individual arguments
+        result = userFn(...input);
+      } catch (err) {
+        caseError = err.message;
+      }
 
-    return { passed, result, error: null };
+      const passed = caseError
+        ? false
+        : checkEquality(result, expected, problem);
+
+      results.push({
+        testCase: i + 1,
+        input,
+        expected,
+        result: caseError ? null : result,
+        passed,
+        error: caseError,
+      });
+    }
   } catch (err) {
-    return {
-      passed: false,
-      result: undefined,
-      error: err.message || String(err),
-    };
+    runtimeError = err.message;
   }
-}
 
-/**
- * Run all test cases for a problem against the user's code.
- *
- * @param {string} code     - User's JavaScript source code
- * @param {Object} problem  - Problem definition (must include `testCases`)
- * @returns {{
- *   totalTests:  number,
- *   passedTests: number,
- *   results: Array<{
- *     testIndex: number,
- *     input:     *,
- *     expected:  *,
- *     result:    *,
- *     passed:    boolean,
- *     error:     string|null
- *   }>
- * }}
- */
-function runAllTests(code, problem) {
-  const results = problem.testCases.map((tc, index) => {
-    const { passed, result, error } = runTestCase(
-      code,
-      tc.input,
-      tc.expected,
-      problem
-    );
-    return {
-      testIndex: index,
-      input: tc.input,
-      expected: tc.expected,
-      result,
-      passed,
-      error,
-    };
-  });
-
-  const passedTests = results.filter((r) => r.passed).length;
+  const passed = results.filter((r) => r.passed).length;
 
   return {
-    totalTests: results.length,
-    passedTests,
     results,
+    passed,
+    total: problem.testCases.length,
+    error: runtimeError,
   };
 }
 
 /**
- * Compare a function's return value against the expected output.
+ * Deep equality check between a result and expected value.
  *
- * Comparison strategy is data-driven via problem definition fields:
- *   - `problem.normalizeResult(value)` — custom normalization applied to both
- *     sides before JSON.stringify comparison (highest priority).
- *   - `problem.orderInsensitive === true` — for array results where order
- *     doesn't matter (e.g. Two Sum returning indices in any order).
- *   - Default — deep structural equality via JSON.stringify.
+ * Comparison strategy is driven by the problem definition:
+ *  - problem.normalizeResult(value) → custom normalization hook (highest priority)
+ *  - problem.orderInsensitive === true → sort numeric arrays before comparing
+ *  - Otherwise → JSON.stringify deep equality
  *
- * @param {*}       result   - Actual return value from user's function
- * @param {*}       expected - Expected value from test case
- * @param {Object}  problem  - Problem definition (may carry comparison config)
+ * Adding a new problem that needs special comparison?  Add `orderInsensitive: true`
+ * or a `normalizeResult` function to that problem's definition in problems.js —
+ * no changes needed here.
+ *
+ * @param {*} result
+ * @param {*} expected
+ * @param {Object} problem - problem definition (may be undefined for standalone use)
  * @returns {boolean}
  */
-function checkEquality(result, expected, problem) {
+export function checkEquality(result, expected, problem) {
   if (result === null || result === undefined) return false;
 
   const isArrayResult = Array.isArray(result);
   const isArrayExpected = Array.isArray(expected);
 
-  // Allow problems to provide a custom normalization/comparison hook.
-  // Both sides are normalized before comparison.
+  // Allow problems to provide a custom normalization/comparison hook
   if (problem && typeof problem.normalizeResult === "function") {
     const normalizedResult = problem.normalizeResult(result);
     const normalizedExpected = problem.normalizeResult(expected);
     return JSON.stringify(normalizedResult) === JSON.stringify(normalizedExpected);
   }
 
-  // For problems where array element order doesn't matter (data-driven flag).
+  // For problems where array order doesn't matter (data-driven via problem definition)
   if (
     problem &&
     problem.orderInsensitive &&
@@ -149,21 +114,19 @@ function checkEquality(result, expected, problem) {
     isArrayExpected
   ) {
     if (result.length !== expected.length) return false;
-    const sortedResult = [...result].sort((a, b) => {
-      if (a < b) return -1;
-      if (a > b) return 1;
-      return 0;
-    });
-    const sortedExpected = [...expected].sort((a, b) => {
-      if (a < b) return -1;
-      if (a > b) return 1;
-      return 0;
-    });
+    const sortedResult = [...result].sort((a, b) => a - b);
+    const sortedExpected = [...expected].sort((a, b) => a - b);
     return JSON.stringify(sortedResult) === JSON.stringify(sortedExpected);
   }
 
-  // Default: deep structural equality.
-  return JSON.stringify(result) === JSON.stringify(expected);
-}
+  // Handle mismatched array/primitive types
+  if (isArrayResult !== isArrayExpected) return false;
 
-export { runAllTests, runTestCase, checkEquality, extractFunctionName };
+  // Arrays — deep equality (order-sensitive)
+  if (isArrayResult && isArrayExpected) {
+    return JSON.stringify(result) === JSON.stringify(expected);
+  }
+
+  // Primitives
+  return result === expected;
+}
