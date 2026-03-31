@@ -6,8 +6,10 @@ import axios from "axios"
 export default function ScoreTracker() {
   const navigate = useNavigate()
   const [tests, setTests] = useState([])
+  const [dsaTests, setDsaTests] = useState([])
   const [loading, setLoading] = useState(true)
   const [expandedTest, setExpandedTest] = useState(null)
+  const [expandedDsaTest, setExpandedDsaTest] = useState(null)
   const [selectedQuestion, setSelectedQuestion] = useState(null)
 
   const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
@@ -109,15 +111,39 @@ export default function ScoreTracker() {
       navigate("/login")
       return
     }
+
+    try {
+      const allDsaTests = localStorage.getItem("allDsaTests")
+      const savedResult = localStorage.getItem("lastTestResult")
+
+      let existingTests = allDsaTests ? JSON.parse(allDsaTests) : []
+
+      if (savedResult) {
+        const result = JSON.parse(savedResult)
+        const testAlreadyExists = existingTests.some(t => t.id === result.id)
+        if (!testAlreadyExists && result.id) {
+          existingTests = [result, ...existingTests]
+          localStorage.setItem("allDsaTests", JSON.stringify(existingTests))
+          localStorage.removeItem("lastTestResult")
+        }
+      }
+
+      setDsaTests(existingTests)
+    } catch (e) {
+      console.error("Error loading DSA tests:", e)
+      setDsaTests([])
+    }
   }, [navigate])
 
   useEffect(() => {
     fetchEvaluations()
   }, [fetchEvaluations])
 
+  // FIX 1: Guard against divide-by-zero and correctly handle 0% averages
   const totalTests = tests.length
-  const overallAvg = tests.length > 0
-    ? Math.round(tests.filter(t => t.avgScore !== null).reduce((s, t) => s + t.avgScore, 0) / tests.filter(t => t.avgScore !== null).length) || 0
+  const evaluatedTests = tests.filter(t => t.avgScore !== null)
+  const overallAvg = evaluatedTests.length > 0
+    ? Math.round(evaluatedTests.reduce((s, t) => s + t.avgScore, 0) / evaluatedTests.length)
     : 0
 
   const css = `
@@ -388,8 +414,6 @@ export default function ScoreTracker() {
       flex-shrink: 0;
     }
 
-    /* DETAIL MODAL */
-
     .st-modal-overlay {
       position: fixed;
       top: 0; left: 0; right: 0; bottom: 0;
@@ -597,7 +621,7 @@ export default function ScoreTracker() {
 
         <div className="st-stats-row">
           <div className="st-stat-card">
-            <div className="st-stat-value">{totalTests}</div>
+            <div className="st-stat-value">{totalTests + dsaTests.length}</div>
             <div className="st-stat-label">Tests Attempted</div>
           </div>
           <div className="st-stat-card">
@@ -605,89 +629,191 @@ export default function ScoreTracker() {
             <div className="st-stat-label">Average Score</div>
           </div>
           <div className="st-stat-card">
+            {/* FIX 3: Use questions.length instead of hardcoded fallback */}
             <div className="st-stat-value">
-              {tests.reduce((sum, t) => sum + t.totalQuestions, 0)}
+              {tests.reduce((sum, t) => sum + t.totalQuestions, 0) + dsaTests.reduce((sum, t) => sum + (t.questions?.length || 0), 0)}
             </div>
             <div className="st-stat-label">Questions Answered</div>
           </div>
         </div>
 
-        {tests.length === 0 ? (
+        {tests.length === 0 && dsaTests.length === 0 ? (
           <div className="st-empty">
             <div className="st-empty-icon">📋</div>
             <div className="st-empty-text">No tests attempted yet</div>
-            <div className="st-empty-sub">Start a behavioural or technical interview to see your scores here.</div>
+            <div className="st-empty-sub">Start a behavioural, technical, or DSA interview to see your scores here.</div>
           </div>
         ) : (
-          tests.map((test) => (
-            <div key={test.testNumber} className="st-test-card">
-              <div
-                className="st-test-header"
-                onClick={() => setExpandedTest(expandedTest === test.testNumber ? null : test.testNumber)}
-              >
-                <div className="st-test-left">
-                  <div className="st-test-number">{test.testNumber}</div>
-                  <div className="st-test-info">
-                    <h3>Test {test.testNumber}</h3>
-                    <div className="st-test-meta">
-                      {formatDate(test.date)} &nbsp;·&nbsp; {test.totalQuestions} question{test.totalQuestions > 1 ? 's' : ''}
-                    </div>
-                  </div>
-                </div>
-                <div className="st-test-right">
-                  {test.avgScore !== null ? (
-                    <span className="st-test-score" style={{ color: getScoreColor(test.avgScore) }}>
-                      {test.avgScore}%
-                    </span>
-                  ) : (
-                    <span className="st-test-pending-badge">⏳ Evaluating</span>
-                  )}
-                  {test.hasProctoringNote && (
-                    <span className="st-test-pending-badge" style={{ background: '#fdecea', color: '#c0392b' }}>
-                      ⚠️ Proctoring Note
-                    </span>
-                  )}
-                  <span className={`st-test-arrow ${expandedTest === test.testNumber ? 'open' : ''}`}>▼</span>
-                </div>
-              </div>
-
-
-              {expandedTest === test.testNumber && (
-                <div className="st-questions-list">
-                  {test.questions.map((q, qIdx) => (
+          <>
+            {/* BEHAVIORAL & TECHNICAL SECTION */}
+            {tests.length > 0 && (
+              <>
+                <h2 style={{ fontSize: "0.9rem", fontWeight: 700, color: "#666", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "20px", marginTop: "40px" }}>
+                  Behavioral & Technical Interviews
+                </h2>
+                {tests.map((test) => (
+                  <div key={test.testNumber} className="st-test-card">
                     <div
-                      key={qIdx}
-                      className="st-question-item"
-                      onClick={() => q.isEvaluated && fetchQuestionDetail(q._id)}
+                      className="st-test-header"
+                      onClick={() => setExpandedTest(expandedTest === test.testNumber ? null : test.testNumber)}
                     >
-                      <div className="st-question-left">
-                        <div className="st-q-index">Q{qIdx + 1}</div>
-                        <div className="st-q-text">{q.question}</div>
+                      <div className="st-test-left">
+                        <div className="st-test-number">{test.testNumber}</div>
+                        <div className="st-test-info">
+                          <h3>Test {test.testNumber}</h3>
+                          <div className="st-test-meta">
+                            {formatDate(test.date)} &nbsp;·&nbsp; {test.totalQuestions} question{test.totalQuestions > 1 ? 's' : ''}
+                          </div>
+                        </div>
                       </div>
-                      {q.displayScoreReady && q.score !== null ? (
-                        <span className="st-q-score" style={{ color: getScoreColor(q.score) }}>
-                          {q.score}% →
-                        </span>
-                      ) : ((q.proctoringTriggerCount || 0) >= 2) ? (
-                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', marginLeft: 16 }}>
-                          <span className="st-q-pending" style={{ color: '#c0392b', fontWeight: 700, marginLeft: 0 }}>
+                      <div className="st-test-right">
+                        {test.avgScore !== null ? (
+                          <span className="st-test-score" style={{ color: getScoreColor(test.avgScore) }}>
+                            {test.avgScore}%
+                          </span>
+                        ) : (
+                          <span className="st-test-pending-badge">⏳ Evaluating</span>
+                        )}
+                        {test.hasProctoringNote && (
+                          <span className="st-test-pending-badge" style={{ background: '#fdecea', color: '#c0392b' }}>
                             ⚠️ Proctoring Note
                           </span>
-                          {!!q.redCardReasons?.length && (
-                            <span className="st-q-pending" style={{ color: '#b03a2e', maxWidth: 320, textAlign: 'right', marginLeft: 0 }}>
-                              {q.redCardReasons[0]}
+                        )}
+                        <span className={`st-test-arrow ${expandedTest === test.testNumber ? 'open' : ''}`}>▼</span>
+                      </div>
+                    </div>
+
+                    {expandedTest === test.testNumber && (
+                      <div className="st-questions-list">
+                        {test.questions.map((q, qIdx) => (
+                          <div
+                            key={qIdx}
+                            className="st-question-item"
+                            // FIX 2: Use correct field check instead of q.isEvaluated
+                            onClick={() => (q.displayScoreReady && q.score !== null) && fetchQuestionDetail(q._id)}
+                          >
+                            <div className="st-question-left">
+                              <div className="st-q-index">Q{qIdx + 1}</div>
+                              <div className="st-q-text">{q.question}</div>
+                            </div>
+                            {q.displayScoreReady && q.score !== null ? (
+                              <span className="st-q-score" style={{ color: getScoreColor(q.score) }}>
+                                {q.score}% →
+                              </span>
+                            ) : ((q.proctoringTriggerCount || 0) >= 2) ? (
+                              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', marginLeft: 16 }}>
+                                <span className="st-q-pending" style={{ color: '#c0392b', fontWeight: 700, marginLeft: 0 }}>
+                                  ⚠️ Proctoring Note
+                                </span>
+                                {!!q.redCardReasons?.length && (
+                                  <span className="st-q-pending" style={{ color: '#b03a2e', maxWidth: 320, textAlign: 'right', marginLeft: 0 }}>
+                                    {q.redCardReasons[0]}
+                                  </span>
+                                )}
+                              </div>
+                            ) : (
+                              <span className="st-q-pending">⏳ Pending</span>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </>
+            )}
+
+            {/* DSA SECTION */}
+            {dsaTests.length > 0 && (
+              <>
+                <h2 style={{ fontSize: "0.9rem", fontWeight: 700, color: "#666", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "20px", marginTop: "40px" }}>
+                  DSA Interviews
+                </h2>
+                {/* FIX 4: Use block body arrow function with explicit return to fix JSX structure */}
+                {dsaTests.map((test, testIdx) => {
+                  const hasFullscreenViolation = test.questions && test.questions.some(q => q.fullscreenViolation)
+                  const totalPossible = test.questions.reduce((sum, q) => sum + q.totalTests, 0)
+                  const totalPassed = test.questions.reduce((sum, q) => sum + q.passedTests, 0)
+                  const percentage = totalPossible > 0 ? Math.round((totalPassed / totalPossible) * 100) : 0
+                  const scoreColor = percentage >= 75 ? '#3ecf8e' : percentage >= 50 ? '#f39c12' : '#e74c3c'
+
+                  return (
+                    <div key={testIdx} className="st-test-card">
+                      <div
+                        className="st-test-header"
+                        onClick={() => setExpandedDsaTest(expandedDsaTest === testIdx ? null : testIdx)}
+                      >
+                        <div className="st-test-left">
+                          <div className="st-test-number" style={{ background: '#e6f2ff', color: '#0066cc' }}>{testIdx + 1}</div>
+                          <div className="st-test-info">
+                            <h3>DSA Test {testIdx + 1}</h3>
+                            <div className="st-test-meta">
+                              {/* FIX 3: Use questions.length for accurate count */}
+                              {formatDate(test.timestamp)} &nbsp;·&nbsp; {test.questions?.length || 0} questions
+                            </div>
+                          </div>
+                        </div>
+                        <div className="st-test-right">
+                          <span className="st-test-score" style={{ color: scoreColor }}>
+                            {percentage}%
+                          </span>
+                          {hasFullscreenViolation && (
+                            <span className="st-test-pending-badge" style={{ background: '#fdecea', color: '#c0392b' }}>
+                              🚩 Fullscreen Violation
                             </span>
                           )}
+                          <span className={`st-test-arrow ${expandedDsaTest === testIdx ? 'open' : ''}`}>▼</span>
                         </div>
-                      ) : (
-                        <span className="st-q-pending">⏳ Pending</span>
+                      </div>
+
+                      {/* FIX 4: expandedDsaTest block is now correctly INSIDE the st-test-card div */}
+                      {expandedDsaTest === testIdx && (
+                        <div className="st-questions-list">
+                          {test.questions && test.questions.map((q, qIdx) => (
+                            <div key={qIdx} className="st-question-item">
+                              <div className="st-question-left">
+                                <div className="st-q-index">Q{qIdx + 1}</div>
+                                <div className="st-q-text" style={{ flex: 1 }}>
+                                  <div style={{ fontWeight: 600, marginBottom: "2px" }}>{q.questionTitle}</div>
+                                  <div style={{ fontSize: "0.75rem", color: "#999", marginBottom: "4px" }}>
+                                    Difficulty: <strong>{q.difficulty}</strong>
+                                  </div>
+                                  <div style={{ fontSize: "0.75rem", color: "#666" }}>
+                                    {q.passedTests}/{q.totalTests} test cases passed
+                                  </div>
+                                  {q.fullscreenViolation && (
+                                    <div style={{ fontSize: "0.75rem", color: "#c0392b", marginTop: "4px", fontWeight: 600, display: "flex", alignItems: "center", gap: "4px" }}>
+                                      <span>🚩</span>
+                                      <span>Fullscreen Exited - Auto Submitted</span>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                              <span
+                                className="st-q-score"
+                                style={{
+                                  color: q.fullscreenViolation
+                                    ? '#c0392b'
+                                    : (q.passedTests >= (q.totalTests * 0.75)
+                                      ? '#3ecf8e'
+                                      : q.passedTests >= (q.totalTests * 0.5)
+                                        ? '#f39c12'
+                                        : '#e74c3c'),
+                                  flex: "0 0 auto"
+                                }}
+                              >
+                                {q.fullscreenViolation && '⚠️ '}{Math.round((q.passedTests / q.totalTests) * 100)}%
+                              </span>
+                            </div>
+                          ))}
+                        </div>
                       )}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          ))
+                    </div>  // closes st-test-card
+                  )         // closes return
+                })}         {/* closes dsaTests.map */}
+              </>
+            )}
+          </>
         )}
       </div>
 

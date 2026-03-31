@@ -2,6 +2,7 @@ const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const path = require('path');
+const runCodeRoutes = require('./routes/runcode');
 require('dotenv').config({ path: path.resolve(__dirname, '.env') });
 
 const app = express();
@@ -17,6 +18,7 @@ app.use(express.urlencoded({ limit: '200mb', extended: true }));
 
 // Expose uploaded proctoring videos for playback/download.
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+app.use("/api", runCodeRoutes)
 
 // MongoDB Connection
 console.log('Attempting to connect to MongoDB...');
@@ -49,8 +51,12 @@ mongoose.connect(mongodbUri, {
 // Routes
 const authRoutes = require('./routes/auth');
 const evaluationRoutes = require('./routes/evaluation');
+const questionRoutes = require('./routes/question');
+const submitRoutes = require('./routes/submit');
 app.use('/api/auth', authRoutes);
 app.use('/api/evaluation', evaluationRoutes);
+app.use('/api/questions', questionRoutes);
+app.use('/api', submitRoutes);
 
 // Health Check
 app.get('/api/health', (req, res) => {
