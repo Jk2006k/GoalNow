@@ -17,7 +17,11 @@ export default function HomePage() {
 
   useEffect(() => {
     if (!authService.isLoggedIn()) { navigate("/login"); return }
-    setUser(authService.getCurrentUser())
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    const currentUser = authService.getCurrentUser()
+    if (currentUser) {
+      setUser(currentUser)
+    }
   }, [navigate])
 
   useEffect(() => {
@@ -283,9 +287,9 @@ export default function HomePage() {
 
       <div className="doodle-side">
         <D top="220px" left="2%" rotate={-10}><Rocket /></D>
-        <D bottom="10px" left="14%" rotate={8}><ThumbsUp /></D>
+        <D bottom="230px" left="14%" rotate={8}><ThumbsUp /></D>
         <D top="650px" left="30%" rotate={-6}><Bulb /></D>
-        <D top="120px" right="6%" rotate={10}><Briefcase /></D>
+        <D top="90px" right="6%" rotate={10}><Briefcase /></D>
         <D top="790px" right="12%" rotate={-8}><Chart /></D>
         <D bottom="530px" right="1%" rotate={6}><Laptop /></D>
         <D top="950px" left="1%" rotate={-6}><Megaphone /></D>
