@@ -8,6 +8,7 @@ const { GoogleGenerativeAI } = require('@google/generative-ai');
 const Evaluation = require('../models/Evaluation');
 const ProctoringScreenshot = require('../models/ProctoringScreenshot');
 const ProctoringVideo = require('../models/ProctoringVideo');
+const User = require('../models/User');
 
 const PROCTORING_VIDEO_DIR = path.resolve(__dirname, '../uploads/proctoring');
 
@@ -147,6 +148,109 @@ router.post('/submit-answer', verifyToken, async (req, res) => {
   } catch (error) {
     console.error('Error submitting answer:', error);
     res.status(500).json({ message: 'Error submitting answer' });
+  }
+});
+
+// Generate technical questions based on resume
+router.post('/generate-technical-questions', verifyToken, async (req, res) => {
+  try {
+    const user = await User.findById(req.userId);
+    if (!user) return res.status(404).json({ message: 'User not found' });
+
+    let prompt = `You are an expert technical interviewer. Generate exactly 10 short, open-ended technical interview questions for a candidate. 
+Return ONLY a valid JSON array of strings. Example: ["Question 1", "Question 2", ..., "Question 10"]. No extra text or markdown codeblocks outside the JSON array.`;
+
+    if (user.resume && user.resume.includes('application/pdf')) {
+      const base64Data = user.resume.split(',')[1] || user.resume;
+      console.log("[Questions] Resume found! base64 length:", base64Data.length);
+      try {
+        const pdftool = require('pdf-parse');
+        const buffer = Buffer.from(base64Data, 'base64');
+        let text = "";
+
+        if (pdftool && typeof pdftool.PDFParse === 'function') {
+          // pdf-parse v2+
+          const parser = new pdftool.PDFParse({ data: buffer });
+          const result = await parser.getText();
+          text = result.text || "";
+          await parser.destroy();
+        } else {
+          // older pdf-parse
+          const parseFunc = (typeof pdftool === 'function') ? pdftool : (pdftool.default || pdftool);
+          if (typeof parseFunc !== 'function') {
+            throw new Error("pdf-parse is not a function. type: " + typeof pdftool);
+          }
+          const data = await parseFunc(buffer);
+          text = data?.text || "";
+        }
+        
+        text = text ? text.substring(0, 4000) : ""; 
+        console.log("[Questions] PDF parsed, length:", text.length);
+        
+        if (text && text.trim().length > 10) {
+          prompt += `\n\nThe candidate's resume content to focus on:\n"""\n${text}\n"""\nINSTRUCTIONS for Question Generation:\n1. EXAMINE the resume text above for specific technologies (e.g., React, Java, AWS), projects, and roles.\n2. GENERATE 10 questions that specifically assess depth in these areas.\n3. Do not ask generic behavioral questions; focus on technical depth based on the resume keywords.`;
+        } else {
+          console.warn("[Questions] PDF parser returned empty text. Using fallback.");
+        }
+      } catch (err) {
+        console.warn("[Questions] pdf-parse failed with error. Trying fallback approach:", err.message);
+        // Fallback or log only
+      }
+    } else if (user.domain) {
+      console.log("[Questions] No PDF found. Using domain:", user.domain);
+      prompt += `\n\nThe candidate's domain is: ${user.domain}. Base the questions on this domain.`;
+    }
+
+    const groqKey = process.env.GROQ_API_KEY;
+    if (!groqKey) throw new Error("Missing GROQ_API_KEY");
+    
+    console.log("[Questions] Sending prompt to Groq...");
+    const groqResponse = await axios.post(
+      'https://api.groq.com/openai/v1/chat/completions',
+      {
+        model: typeof GROQ_MODEL !== 'undefined' ? GROQ_MODEL : 'llama-3.1-8b-instant',
+        messages: [{ role: 'user', content: prompt }],
+        temperature: 0.7,
+        max_tokens: 1500,
+      },
+      {
+        headers: {
+          'Authorization': `Bearer ${groqKey}`,
+          'Content-Type': 'application/json'
+        }
+      }
+    );
+    
+    let textOut = groqResponse.data?.choices?.[0]?.message?.content || '';
+    console.log("[Questions] Received response from Groq. Length:", textOut.length);
+    const match = textOut.match(/\[[\s\S]*\]/);
+    if (!match) throw new Error("Invalid output from AI: " + textOut);
+    
+    let questions = JSON.parse(match[0]);
+    while (questions.length < 10) questions.push("Can you describe a challenging technical problem you solved?");
+    questions = questions.slice(0, 10);
+    console.log("[Questions] Successfully returning 10 generated questions!");
+
+    res.json({ success: true, questions });
+  } catch (error) {
+    console.error("Error generating technical questions:", error);
+    try {
+      require('fs').writeFileSync('debug-questions-error.txt', error.stack || String(error));
+    } catch(e){}
+    const fallback = [
+      "Explain a complex project you worked on recently.",
+      "How do you ensure code quality and maintainability?",
+      "Can you describe a time you had to optimize performance?",
+      "What is your approach to debugging difficult issues?",
+      "Describe a challenging technical architectural decision you made.",
+      "How do you stay up-to-date with new technologies?",
+      "Tell me about a time you disagreed with a technical team member.",
+      "Explain the concept of RESTful APIs and best practices.",
+      "How do you handle security vulnerabilities in your applications?",
+      "What is your preferred tech stack and why?"
+    ];
+    // Return fallback but also the error if possible
+    res.json({ success: true, questions: fallback, error: error.message });
   }
 });
 
@@ -357,37 +461,18 @@ router.post('/proctoring/finalize', verifyToken, async (req, res) => {
       }
     }
 
-    // Use stricter rules to avoid false positives from noisy AI outputs.
-    const seriousReasonRegex = /phone|mobile|device|notes?|book|off-?screen|assistance|help/i;
-    const multiFaceReasonRegex = /multiple\s*faces?|second\s*person/i;
-
-    const seriousAlerts = alerts.filter((a) => {
+    // Removed strict regex filtering based on user request.
+    // ANY valid AI malpractice tag will count as a trigger.
+    const seriousAlerts = alerts.filter(a => {
       const confidence = typeof a.confidence === 'number' ? a.confidence : 0.5;
-      const reason = String(a.reason || '');
-      return confidence >= 0.85 && seriousReasonRegex.test(reason);
+      return confidence >= 0.5; 
     });
+    
+    // Trigger calculation: 2 or more serious alerts (confidence >= 0.5)
+    // ANY trigger counts at all, but total triggers (alerts.length) determines the Red Card
+    const triggerCount = alerts.length; 
+    const redCard = triggerCount >= 2;
 
-    const multiFaceAlerts = alerts.filter((a) => {
-      const confidence = typeof a.confidence === 'number' ? a.confidence : 0.5;
-      const reason = String(a.reason || '');
-      return confidence >= 0.97 && multiFaceReasonRegex.test(reason);
-    });
-
-    const distinctSeriousScreenshotIds = new Set(
-      seriousAlerts
-        .map((a) => String(a.screenshotId || '').trim())
-        .filter(Boolean)
-    );
-
-    const distinctMultiFaceScreenshotIds = new Set(
-      multiFaceAlerts
-        .map((a) => String(a.screenshotId || '').trim())
-        .filter(Boolean)
-    );
-
-    const triggerCount = seriousAlerts.length + multiFaceAlerts.length;
-    // Note-only mode: keep trigger reasons for review, do not auto-assign red cards.
-    const redCard = false;
     const normalizeReasonKey = (text) =>
       String(text || '')
         .toLowerCase()
@@ -395,7 +480,7 @@ router.post('/proctoring/finalize', verifyToken, async (req, res) => {
         .replace(/\s+/g, ' ')
         .trim();
 
-    const selectedForReasons = [...seriousAlerts, ...multiFaceAlerts];
+    const selectedForReasons = alerts;
     const redCardReasons = Object.values(
       selectedForReasons.reduce((acc, a) => {
         const reason = String(a.reason || '').trim();
@@ -427,6 +512,7 @@ router.post('/proctoring/finalize', verifyToken, async (req, res) => {
         proctoringTriggerCount: 0,
         redCard: false,
         redCardReasons: [],
+        isProctoringEvaluated: true,
       },
     });
 
@@ -451,8 +537,8 @@ router.post('/proctoring/finalize', verifyToken, async (req, res) => {
           {
             $set: {
               proctoringTriggerCount: triggerCount,
-              redCard: triggerCount >= 2,
-              redCardReasons: triggerCount >= 2 ? redCardReasons : [],
+              redCard: redCard,
+              redCardReasons: redCard ? redCardReasons : [],
             },
           }
         );
@@ -610,7 +696,8 @@ router.get('/user-evaluations', verifyToken, async (req, res) => {
         proctoringTriggerCount: e.proctoringTriggerCount || 0,
         redCardReasons: e.redCardReasons || [],
         submittedAt: e.submittedAt,
-        evaluatedAt: e.evaluatedAt
+        evaluatedAt: e.evaluatedAt,
+        interviewType: e.interviewType || 'behavioral'
       }
     })
 
@@ -654,27 +741,27 @@ Format your response as JSON only, nothing else:
 
     let evaluationResult = null;
 
-    // Try Gemini AI first (most reliable with our key)
+    // Try Groq Cloud first
     try {
-      console.log('🔄 Trying Gemini AI...');
-      evaluationResult = await evaluateWithGemini(prompt);
-      console.log('✅ Gemini evaluation successful');
-    } catch (geminiError) {
-      console.warn('⚠️ Gemini failed:', geminiError.message);
+      console.log('🔄 Trying Groq AI...');
+      evaluationResult = await evaluateWithGroq(prompt);
+      console.log('✅ Groq evaluation successful');
+    } catch (groqError) {
+      console.warn('⚠️ Groq failed:', groqError.message);
     }
 
-    // If Gemini failed, try Groq Cloud
+    // If Groq failed, try Gemini AI
     if (!evaluationResult) {
       try {
-        console.log('🔄 Trying Groq AI...');
-        evaluationResult = await evaluateWithGroq(prompt);
-        console.log('✅ Groq evaluation successful');
-      } catch (groqError) {
-        console.warn('⚠️ Groq failed:', groqError.message);
+        console.log('🔄 Trying Gemini AI...');
+        evaluationResult = await evaluateWithGemini(prompt);
+        console.log('✅ Gemini evaluation successful');
+      } catch (geminiError) {
+        console.warn('⚠️ Gemini failed:', geminiError.message);
       }
     }
 
-    // If Groq failed, try xAI Grok
+    // If Gemini failed, try xAI Grok
     if (!evaluationResult) {
       try {
         console.log('🔄 Trying Grok AI...');
@@ -688,7 +775,14 @@ Format your response as JSON only, nothing else:
     // If all AI services failed, use basic evaluation
     if (!evaluationResult) {
       console.log('🔄 AI services unavailable, using basic evaluation');
-      evaluationResult = generateBasicEvaluation(evaluation.transcribedAnswer);
+      evaluationResult = {
+        clarity: 60,
+        relevance: 60,
+        completeness: 60,
+        professionalism: 60,
+        overallScore: 60,
+        feedback: "We could not reach our AI evaluation servers. Here is a baseline placeholder score based on completion."
+      };
     }
 
     // Update evaluation with results

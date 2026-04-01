@@ -1,6 +1,5 @@
 import React, { useRef, useState, useEffect, useCallback } from "react"
 import { useNavigate } from "react-router-dom"
-import behaviouralQuestions from "../components/question"
 import axios from "axios"
 
 function loadScript(src) {
@@ -14,7 +13,7 @@ function loadScript(src) {
   })
 }
 
-export default function BehavioralInterview() {
+export default function TechnicalInterview() {
   const navigate = useNavigate()
   const camRef             = useRef(null)
   const screenRef          = useRef(null)
@@ -47,6 +46,7 @@ export default function BehavioralInterview() {
   const [mpReady,             setMpReady]             = useState(false)
   const [shuffledQuestions,   setShuffledQuestions]   = useState([])
   const [isSubmittingAnswer,  setIsSubmittingAnswer]  = useState(false)
+  const [isGenerating,        setIsGenerating]        = useState(true)
 
   const NUM_Q   = 10
   const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
@@ -122,7 +122,7 @@ export default function BehavioralInterview() {
       })
 
       await axios.post(`${API_URL}/evaluation/proctoring/video`, {
-        interviewType: 'behavioral',
+        interviewType: 'technical',
         videoData,
         mimeType: blob.type || 'video/webm',
         startedAt: interviewVideoStartedAtRef.current,
@@ -151,13 +151,52 @@ export default function BehavioralInterview() {
     return shuffled
   }
 
-  // ─── Scroll to top ────────────────────────────────────────────────────────
+  // ─── Scroll to top & Fetch Questions ──────────────────────────────────────
   useEffect(() => {
     window.scrollTo(0, 0)
-    // Shuffle questions on component mount
-    const shuffled = shuffleArray(behaviouralQuestions).slice(0, NUM_Q)
-    setShuffledQuestions(shuffled)
   }, [])
+
+  useEffect(() => {
+    if (!authToken) return
+
+    const fetchTechnicalQuestions = async () => {
+      try {
+        const res = await axios.post(`${API_URL}/evaluation/generate-technical-questions`, {}, {
+          headers: { Authorization: `Bearer ${authToken}` }
+        })
+        const questions = res.data.questions || [
+            "Explain a complex project you worked on recently.",
+            "How do you ensure code quality and maintainability?",
+            "Can you describe a time you had to optimize performance?",
+            "What is your approach to debugging difficult issues?",
+            "Describe a challenging technical architectural decision you made.",
+            "How do you stay up-to-date with new technologies?",
+            "Tell me about a time you disagreed with a technical team member.",
+            "Explain the concept of RESTful APIs and best practices.",
+            "How do you handle security vulnerabilities in your applications?",
+            "What is your preferred tech stack and why?"
+        ];
+        setShuffledQuestions(questions.slice(0, NUM_Q))
+      } catch (err) {
+        console.error("Failed to generate questions:", err)
+        setShuffledQuestions([
+            "Explain a complex project you worked on recently.",
+            "How do you ensure code quality and maintainability?",
+            "Can you describe a time you had to optimize performance?",
+            "What is your approach to debugging difficult issues?",
+            "Describe a challenging technical architectural decision you made.",
+            "How do you stay up-to-date with new technologies?",
+            "Tell me about a time you disagreed with a technical team member.",
+            "Explain the concept of RESTful APIs and best practices.",
+            "How do you handle security vulnerabilities in your applications?",
+            "What is your preferred tech stack and why?"
+        ])
+      } finally {
+        setIsGenerating(false)
+      }
+    }
+    fetchTechnicalQuestions()
+  }, [authToken, API_URL])
 
   // ─── MEDIAPIPE SETUP ──────────────────────────────────────────────────────
   useEffect(() => {
@@ -571,7 +610,7 @@ export default function BehavioralInterview() {
 
     try {
       const response = await axios.post(`${API_URL}/evaluation/proctoring/screenshot`, {
-        interviewType: 'behavioral',
+        interviewType: 'technical',
         imageData,
         capturedAt: new Date().toISOString(),
       }, {
@@ -595,7 +634,7 @@ export default function BehavioralInterview() {
         .filter(Boolean)
 
       const res = await axios.post(`${API_URL}/evaluation/proctoring/finalize`, {
-        interviewType: 'behavioral',
+        interviewType: 'technical',
         evaluationIds,
       }, {
         headers: { Authorization: `Bearer ${authToken}` }
@@ -669,7 +708,7 @@ export default function BehavioralInterview() {
         questionIndex:     currentQuestionIdx,
         question:          shuffledQuestions[currentQuestionIdx],
         transcribedAnswer: transcribedText,
-        interviewType:     'behavioral'
+        interviewType:     'technical'
       }, { headers: { Authorization: `Bearer ${authToken}` } })
 
       setEvaluationStatuses(p => ({
@@ -852,6 +891,15 @@ export default function BehavioralInterview() {
   return (
     <div className="iw">
       <style>{css}</style>
+      
+      {isGenerating && (
+        <div style={{
+          position: 'absolute', inset: 0, zIndex: 9999, background: '#f5f5f5',
+          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center'
+        }}>
+          <h2 style={{ fontFamily: "'Sora', sans-serif" }}>Analyzing your resume and generating technical questions...</h2>
+        </div>
+      )}
 
       {/* HEADER */}
       <div className="hdr">
@@ -876,7 +924,7 @@ export default function BehavioralInterview() {
         {/* CENTER — question + recording */}
         <div className="ctr">
           <div className="qcn">
-            <div className="qtg">Behavioural Question</div>
+            <div className="qtg">Technical Question</div>
             <div className="qtx">{shuffledQuestions[currentQuestionIdx]}</div>
 
             <div className={`tdv ${!transcribedText ? 'empty' : ''}`}>

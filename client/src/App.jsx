@@ -9,6 +9,7 @@ import Technical from "./Page/Technical"
 import DSA from "./Page/DSA"
 import DSAInterview from "./Page/DSAInterview"
 import BehavioralInterview from "./Page/BehavioralInterview"
+import TechnicalInterview from "./Page/TechnicalInterview"
 import EvaluationResults from "./Page/EvaluationResults"
 import ScoreTracker from "./Page/ScoreTracker"
 
@@ -25,6 +26,7 @@ function App() {
         <Route path="/dsa" element={<DSA />} />
         <Route path="/dsa-interview" element={<DSAInterview />} />
         <Route path="/behavioral-interview" element={<BehavioralInterview />} />
+        <Route path="/technical-interview" element={<TechnicalInterview />} />
         <Route path="/evaluation-results" element={<EvaluationResults />} />
         <Route path="/score-tracker" element={<ScoreTracker />} />
       </Routes>
