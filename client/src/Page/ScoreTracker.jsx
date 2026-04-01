@@ -5,9 +5,11 @@ import axios from "axios"
 
 export default function ScoreTracker() {
   const navigate = useNavigate()
-  const [tests, setTests] = useState([])
+  const [behavioralTests, setBehavioralTests] = useState([])
+  const [technicalTests, setTechnicalTests] = useState([])
   const [dsaTests, setDsaTests] = useState([])
   const [loading, setLoading] = useState(true)
+  const [expandedSection, setExpandedSection] = useState(null)
   const [expandedTest, setExpandedTest] = useState(null)
   const [expandedDsaTest, setExpandedDsaTest] = useState(null)
   const [selectedQuestion, setSelectedQuestion] = useState(null)
@@ -53,7 +55,7 @@ export default function ScoreTracker() {
         ? Math.round(evaluatedQuestions.reduce((sum, q) => sum + q.score, 0) / evaluatedQuestions.length)
         : null
 
-      const hasProctoringNote = group.some(q => (q.proctoringTriggerCount || 0) >= 2)
+      const hasProctoringNote = group.some(q => q.redCard === true || (q.proctoringTriggerCount || 0) >= 2)
       const redCardReasons = [...new Set(group.flatMap((q) => q.redCardReasons || []))].slice(0, 5)
 
       return {
@@ -65,6 +67,7 @@ export default function ScoreTracker() {
         allEvaluated: group.every(q => q.displayScoreReady),
         hasProctoringNote,
         redCardReasons,
+        interviewType: group[0].interviewType || 'behavioral'
       }
     })
   }
@@ -79,8 +82,18 @@ export default function ScoreTracker() {
         { headers: { Authorization: `Bearer ${token}` } }
       )
 
-      const grouped = groupIntoTests(response.data.evaluations)
-      setTests(grouped.reverse())
+      const evals = response.data.evaluations || []
+      console.log("[ScoreTracker] Total Evals from server:", evals.length);
+      
+      const behavioralList = evals.filter(e => (!e.interviewType || e.interviewType === 'behavioral'))
+      const technicalList = evals.filter(e => e.interviewType === 'technical')
+      console.log("[ScoreTracker] Category Split - Behavioral:", behavioralList.length, "Technical:", technicalList.length);
+
+      const groupedBehavioral = groupIntoTests(behavioralList)
+      const groupedTechnical = groupIntoTests(technicalList)
+      
+      setBehavioralTests(groupedBehavioral.reverse())
+      setTechnicalTests(groupedTechnical.reverse())
       setLoading(false)
     } catch (error) {
       console.error('Error fetching evaluations:', error)
@@ -139,12 +152,30 @@ export default function ScoreTracker() {
     fetchEvaluations()
   }, [fetchEvaluations])
 
-  // FIX 1: Guard against divide-by-zero and correctly handle 0% averages
-  const totalTests = tests.length
-  const evaluatedTests = tests.filter(t => t.avgScore !== null)
-  const overallAvg = evaluatedTests.length > 0
-    ? Math.round(evaluatedTests.reduce((s, t) => s + t.avgScore, 0) / evaluatedTests.length)
-    : 0
+  const dsaAvg = (() => {
+    const totalPossible = dsaTests.reduce((sum, t) => sum + (t.questions?.reduce((qSum, q) => qSum + q.totalTests, 0) || 0), 0)
+    const totalPassed = dsaTests.reduce((sum, t) => sum + (t.questions?.reduce((qSum, q) => qSum + q.passedTests, 0) || 0), 0)
+    return totalPossible > 0 ? Math.round((totalPassed / totalPossible) * 100) : 0
+  })()
+
+  const behavioralAvg = (() => {
+    const evaluated = behavioralTests.filter(t => t.avgScore !== null)
+    return evaluated.length > 0
+      ? Math.round(evaluated.reduce((s, t) => s + t.avgScore, 0) / evaluated.length)
+      : 0
+  })()
+
+  const technicalAvg = (() => {
+    const evaluated = technicalTests.filter(t => t.avgScore !== null)
+    return evaluated.length > 0
+      ? Math.round(evaluated.reduce((s, t) => s + t.avgScore, 0) / evaluated.length)
+      : 0
+  })()
+
+  const totalQuestionsAnswered = 
+    behavioralTests.reduce((sum, t) => sum + t.totalQuestions, 0) + 
+    technicalTests.reduce((sum, t) => sum + t.totalQuestions, 0) + 
+    dsaTests.reduce((sum, t) => sum + (t.questions?.length || 0), 0)
 
   const css = `
     @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Fraunces:ital,opsz,wght@0,9..144,300;1,9..144,300;1,9..144,400&display=swap');
@@ -621,46 +652,52 @@ export default function ScoreTracker() {
 
         <div className="st-stats-row">
           <div className="st-stat-card">
-            <div className="st-stat-value">{totalTests + dsaTests.length}</div>
-            <div className="st-stat-label">Tests Attempted</div>
-          </div>
-          <div className="st-stat-card">
-            <div className="st-stat-value" style={{ color: getScoreColor(overallAvg) }}>{overallAvg}%</div>
-            <div className="st-stat-label">Average Score</div>
-          </div>
-          <div className="st-stat-card">
-            {/* FIX 3: Use questions.length instead of hardcoded fallback */}
-            <div className="st-stat-value">
-              {tests.reduce((sum, t) => sum + t.totalQuestions, 0) + dsaTests.reduce((sum, t) => sum + (t.questions?.length || 0), 0)}
+            <div className="st-stat-value" style={{ color: getScoreColor(behavioralAvg) }}>
+              <span style={{ fontSize: '1.2rem', verticalAlign: 'middle', marginRight: '8px' }}>🤝</span>
+              {behavioralAvg}%
             </div>
-            <div className="st-stat-label">Questions Answered</div>
+            <div className="st-stat-label">Behavioral Avg</div>
+          </div>
+          <div className="st-stat-card">
+            <div className="st-stat-value" style={{ color: getScoreColor(technicalAvg) }}>
+              <span style={{ fontSize: '1.2rem', verticalAlign: 'middle', marginRight: '8px' }}>💻</span>
+              {technicalAvg}%
+            </div>
+            <div className="st-stat-label">Technical Avg</div>
+          </div>
+          <div className="st-stat-card">
+            <div className="st-stat-value" style={{ color: getScoreColor(dsaAvg) }}>
+              <span style={{ fontSize: '1.2rem', verticalAlign: 'middle', marginRight: '8px' }}>🚀</span>
+              {dsaAvg}%
+            </div>
+            <div className="st-stat-label">DSA Avg</div>
           </div>
         </div>
 
-        {tests.length === 0 && dsaTests.length === 0 ? (
+        {behavioralTests.length === 0 && technicalTests.length === 0 && dsaTests.length === 0 ? (
           <div className="st-empty">
             <div className="st-empty-icon">📋</div>
             <div className="st-empty-text">No tests attempted yet</div>
-            <div className="st-empty-sub">Start a behavioural, technical, or DSA interview to see your scores here.</div>
+            <div className="st-empty-sub">Start a behavioral, technical, or DSA interview to see your scores here.</div>
           </div>
         ) : (
           <>
-            {/* BEHAVIORAL & TECHNICAL SECTION */}
-            {tests.length > 0 && (
+            {/* BEHAVIORAL SECTION */}
+            {behavioralTests.length > 0 && (
               <>
-                <h2 style={{ fontSize: "0.9rem", fontWeight: 700, color: "#666", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "20px", marginTop: "40px" }}>
-                  Behavioral & Technical Interviews
+                <h2 style={{ fontSize: "0.9rem", fontWeight: 700, color: "#666", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "20px", marginTop: "40px", display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ fontSize: '1.2rem' }}>🤝</span> Behavioral Interviews
                 </h2>
-                {tests.map((test) => (
-                  <div key={test.testNumber} className="st-test-card">
+                {behavioralTests.map((test) => (
+                  <div key={`beh-${test.testNumber}`} className="st-test-card">
                     <div
                       className="st-test-header"
-                      onClick={() => setExpandedTest(expandedTest === test.testNumber ? null : test.testNumber)}
+                      onClick={() => setExpandedTest(expandedTest === `beh-${test.testNumber}` ? null : `beh-${test.testNumber}`)}
                     >
                       <div className="st-test-left">
                         <div className="st-test-number">{test.testNumber}</div>
                         <div className="st-test-info">
-                          <h3>Test {test.testNumber}</h3>
+                          <h3>Behavioral Session {test.testNumber}</h3>
                           <div className="st-test-meta">
                             {formatDate(test.date)} &nbsp;·&nbsp; {test.totalQuestions} question{test.totalQuestions > 1 ? 's' : ''}
                           </div>
@@ -676,34 +713,29 @@ export default function ScoreTracker() {
                         )}
                         {test.hasProctoringNote && (
                           <span className="st-test-pending-badge" style={{ background: '#fdecea', color: '#c0392b' }}>
-                            ⚠️ Proctoring Note
+                            🚩 Red Card
                           </span>
                         )}
-                        <span className={`st-test-arrow ${expandedTest === test.testNumber ? 'open' : ''}`}>▼</span>
+                        <span className={`st-test-arrow ${expandedTest === `beh-${test.testNumber}` ? 'open' : ''}`}>▼</span>
                       </div>
                     </div>
 
-                    {expandedTest === test.testNumber && (
+                    {expandedTest === `beh-${test.testNumber}` && (
                       <div className="st-questions-list">
                         {test.questions.map((q, qIdx) => (
                           <div
                             key={qIdx}
                             className="st-question-item"
-                            // FIX 2: Use correct field check instead of q.isEvaluated
                             onClick={() => (q.displayScoreReady && q.score !== null) && fetchQuestionDetail(q._id)}
                           >
                             <div className="st-question-left">
                               <div className="st-q-index">Q{qIdx + 1}</div>
                               <div className="st-q-text">{q.question}</div>
                             </div>
-                            {q.displayScoreReady && q.score !== null ? (
-                              <span className="st-q-score" style={{ color: getScoreColor(q.score) }}>
-                                {q.score}% →
-                              </span>
-                            ) : ((q.proctoringTriggerCount || 0) >= 2) ? (
+                            {((q.proctoringTriggerCount || 0) >= 2) ? (
                               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', marginLeft: 16 }}>
                                 <span className="st-q-pending" style={{ color: '#c0392b', fontWeight: 700, marginLeft: 0 }}>
-                                  ⚠️ Proctoring Note
+                                  🚩 Malpractice Note
                                 </span>
                                 {!!q.redCardReasons?.length && (
                                   <span className="st-q-pending" style={{ color: '#b03a2e', maxWidth: 320, textAlign: 'right', marginLeft: 0 }}>
@@ -711,6 +743,87 @@ export default function ScoreTracker() {
                                   </span>
                                 )}
                               </div>
+                            ) : (q.displayScoreReady && q.score !== null) ? (
+                              <span className="st-q-score" style={{ color: getScoreColor(q.score) }}>
+                                {q.score}% →
+                              </span>
+                            ) : (
+                              <span className="st-q-pending">⏳ Pending</span>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </>
+            )}
+
+            {/* TECHNICAL SECTION */}
+            {technicalTests.length > 0 && (
+              <>
+                <h2 style={{ fontSize: "0.9rem", fontWeight: 700, color: "#666", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "20px", marginTop: "40px", display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ fontSize: '1.2rem' }}>💻</span> Technical Viva Interviews
+                </h2>
+                {technicalTests.map((test) => (
+                  <div key={`tech-${test.testNumber}`} className="st-test-card">
+                    <div
+                      className="st-test-header"
+                      onClick={() => setExpandedTest(expandedTest === `tech-${test.testNumber}` ? null : `tech-${test.testNumber}`)}
+                    >
+                      <div className="st-test-left">
+                        <div className="st-test-number" style={{ background: '#f5f0ff', color: '#6b3dc7' }}>{test.testNumber}</div>
+                        <div className="st-test-info">
+                          <h3>Technical Session {test.testNumber}</h3>
+                          <div className="st-test-meta">
+                            {formatDate(test.date)} &nbsp;·&nbsp; {test.totalQuestions} question{test.totalQuestions > 1 ? 's' : ''}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="st-test-right">
+                        {test.avgScore !== null ? (
+                          <span className="st-test-score" style={{ color: getScoreColor(test.avgScore) }}>
+                            {test.avgScore}%
+                          </span>
+                        ) : (
+                          <span className="st-test-pending-badge">⏳ Evaluating</span>
+                        )}
+                        {test.hasProctoringNote && (
+                          <span className="st-test-pending-badge" style={{ background: '#fdecea', color: '#c0392b' }}>
+                            🚩 Red Card
+                          </span>
+                        )}
+                        <span className={`st-test-arrow ${expandedTest === `tech-${test.testNumber}` ? 'open' : ''}`}>▼</span>
+                      </div>
+                    </div>
+
+                    {expandedTest === `tech-${test.testNumber}` && (
+                      <div className="st-questions-list">
+                        {test.questions.map((q, qIdx) => (
+                          <div
+                            key={qIdx}
+                            className="st-question-item"
+                            onClick={() => (q.displayScoreReady && q.score !== null) && fetchQuestionDetail(q._id)}
+                          >
+                            <div className="st-question-left">
+                              <div className="st-q-index">Q{qIdx + 1}</div>
+                              <div className="st-q-text">{q.question}</div>
+                            </div>
+                            {((q.proctoringTriggerCount || 0) >= 2) ? (
+                              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', marginLeft: 16 }}>
+                                <span className="st-q-pending" style={{ color: '#c0392b', fontWeight: 700, marginLeft: 0 }}>
+                                  🚩 Malpractice Note
+                                </span>
+                                {!!q.redCardReasons?.length && (
+                                  <span className="st-q-pending" style={{ color: '#b03a2e', maxWidth: 320, textAlign: 'right', marginLeft: 0 }}>
+                                    {q.redCardReasons[0]}
+                                  </span>
+                                )}
+                              </div>
+                            ) : (q.displayScoreReady && q.score !== null) ? (
+                              <span className="st-q-score" style={{ color: getScoreColor(q.score) }}>
+                                {q.score}% →
+                              </span>
                             ) : (
                               <span className="st-q-pending">⏳ Pending</span>
                             )}

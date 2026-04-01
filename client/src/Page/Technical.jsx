@@ -544,8 +544,8 @@ const instructions = [
   },
   {
     icon: icons.bolt,
-    label: "Single Attempt Coding Round",
-    sub: "The coding challenge must be completed in one session without pausing."
+    label: "Dynamic Resume Questioning",
+    sub: "AI will analyze your resume and generate specialized technical questions based on your profile."
   },
   {
     icon: icons.monitor,
@@ -559,8 +559,8 @@ const instructions = [
   },
   {
     icon: icons.edit,
-    label: "Write Code Independently",
-    sub: "Do not use external tools, AI assistants, or outside help while solving problems."
+    label: "Answer Vocally",
+    sub: "This is a Viva-style assessment. You will answer questions using your microphone, exactly like the behavioral round."
   }
 ]
 
@@ -589,7 +589,7 @@ return(
     <div className="assessment-card">
 
       <div className="assessment-name">
-        Technical Interview | Coding Assessment
+        Technical Viva & Resume Assessment
       </div>
 
       <div className="assessment-info">
@@ -599,12 +599,12 @@ return(
 
       <div className="assessment-info">
         <span>Duration</span>
-        <strong>45-60 min</strong>
+        <strong>15-20 min</strong>
       </div>
 
       <div className="assessment-info">
         <span>Total Questions</span>
-        <strong>3</strong>
+        <strong>10</strong>
       </div>
 
     </div>
@@ -761,7 +761,7 @@ return(
             navigate("/technical-interview")
           }}
         >
-          Start Coding Round
+          Start Technical Viva
           <svg viewBox="0 0 24 24"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
         </button>
       </div>
