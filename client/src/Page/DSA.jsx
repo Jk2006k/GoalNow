@@ -11,6 +11,7 @@ const screenRef = useRef(null)
 const [camEnabled, setCamEnabled] = useState(false)
 const [screenEnabled, setScreenEnabled] = useState(false)
 const [fullEnabled, setFullEnabled] = useState(false)
+const [difficultySelected, setDifficultySelected] = useState(null)
 const [checksCompleted, setChecksCompleted] = useState(false)
 
 // Scroll to top on component mount
@@ -19,10 +20,10 @@ React.useEffect(() => {
 }, [])
 
 React.useEffect(() => {
-  if(camEnabled && screenEnabled && fullEnabled && !checksCompleted){
+  if(camEnabled && screenEnabled && fullEnabled && difficultySelected && !checksCompleted){
     setChecksCompleted(true)
   }
-}, [camEnabled, screenEnabled, fullEnabled, checksCompleted])
+}, [camEnabled, screenEnabled, fullEnabled, difficultySelected, checksCompleted])
 
 React.useEffect(() => {
   const handleFullscreenChange = () => {
@@ -499,6 +500,170 @@ margin-bottom:10px;
   color:#24344d;
 }
 
+/* Difficulty Selection */
+.difficulty-section{
+  margin-top:30px;
+  margin-bottom:30px;
+}
+
+.difficulty-title{
+  font-size:1.1rem;
+  font-weight:700;
+  margin-bottom:15px;
+  color:#24344d;
+}
+
+.difficulty-subtitle{
+  font-size:0.85rem;
+  color:#6b7a8d;
+  margin-bottom:12px;
+}
+
+.difficulty-grid{
+  display:grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap:12px;
+  margin-bottom:15px;
+}
+
+.difficulty-option{
+  border:1.5px solid #e4e4e4;
+  border-radius:10px;
+  padding:16px;
+  background:#fff;
+  cursor:pointer;
+  transition:all 0.2s ease;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  gap:8px;
+  text-align:center;
+  position:relative;
+}
+
+.difficulty-option:hover{
+  border-color:#c4c4c4;
+  box-shadow:0 2px 10px rgba(36,52,77,0.08);
+}
+
+.difficulty-option.selected{
+  border-color:#24344d;
+  background:#f0f4ff;
+  box-shadow:0 0 0 2px rgba(36,52,77,0.1);
+}
+
+.difficulty-option.easy{
+  border-color:#c8e6c9;
+}
+
+.difficulty-option.easy.selected{
+  border-color:#2e7d32;
+  background:#f1f8f1;
+}
+
+.difficulty-option.medium{
+  border-color:#ffcc80;
+}
+
+.difficulty-option.medium.selected{
+  border-color:#f57f17;
+  background:#fff3e0;
+}
+
+.difficulty-option.hard{
+  border-color:#ef9a9a;
+}
+
+.difficulty-option.hard.selected{
+  border-color:#c62828;
+  background:#ffebee;
+}
+
+.difficulty-option.prep{
+  border-color:#64b5f6;
+}
+
+.difficulty-option.prep.selected{
+  border-color:#1565c0;
+  background:#e3f2fd;
+}
+
+.difficulty-badge{
+  width:40px;
+  height:40px;
+  border-radius:8px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-weight:700;
+  font-size:1.2rem;
+}
+
+.difficulty-badge.easy{
+  background:#c8e6c9;
+  color:#2e7d32;
+}
+
+.difficulty-badge.medium{
+  background:#ffcc80;
+  color:#f57f17;
+}
+
+.difficulty-badge.hard{
+  background:#ef9a9a;
+  color:#c62828;
+}
+
+.difficulty-badge.prep{
+  background:#64b5f6;
+  color:#1565c0;
+}
+
+.difficulty-name{
+  font-weight:700;
+  font-size:0.95rem;
+  color:#24344d;
+}
+
+.difficulty-count{
+  font-size:0.75rem;
+  color:#888;
+}
+
+.difficulty-checkmark{
+  position:absolute;
+  top:8px;
+  right:8px;
+  width:20px;
+  height:20px;
+  border-radius:50%;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-size:0.8rem;
+  font-weight:700;
+}
+
+.difficulty-option.easy.selected .difficulty-checkmark{
+  background:#2e7d32;
+  color:white;
+}
+
+.difficulty-option.medium.selected .difficulty-checkmark{
+  background:#f57f17;
+  color:white;
+}
+
+.difficulty-option.hard.selected .difficulty-checkmark{
+  background:#c62828;
+  color:white;
+}
+
+.difficulty-option.prep.selected .difficulty-checkmark{
+  background:#1565c0;
+  color:white;
+}
+
 `
 
 const icons = {
@@ -654,6 +819,54 @@ return(
 
       <div className="system-check-title">System Check</div>
 
+      {/* DIFFICULTY SELECTION */}
+      <div className="difficulty-section">
+        <div className="difficulty-title">Select Difficulty Level</div>
+        <div className="difficulty-subtitle">Choose the difficulty level for your coding challenge</div>
+        
+        <div className="difficulty-grid">
+          <div 
+            className={`difficulty-option easy ${difficultySelected === 'easy' ? 'selected' : ''}`}
+            onClick={() => setDifficultySelected('easy')}
+          >
+            {difficultySelected === 'easy' && <div className="difficulty-checkmark">✓</div>}
+            <div className="difficulty-badge easy">📚</div>
+            <div className="difficulty-name">Easy</div>
+            <div className="difficulty-count">3 Questions</div>
+          </div>
+
+          <div 
+            className={`difficulty-option medium ${difficultySelected === 'medium' ? 'selected' : ''}`}
+            onClick={() => setDifficultySelected('medium')}
+          >
+            {difficultySelected === 'medium' && <div className="difficulty-checkmark">✓</div>}
+            <div className="difficulty-badge medium">🎯</div>
+            <div className="difficulty-name">Medium</div>
+            <div className="difficulty-count">3 Questions</div>
+          </div>
+
+          <div 
+            className={`difficulty-option hard ${difficultySelected === 'hard' ? 'selected' : ''}`}
+            onClick={() => setDifficultySelected('hard')}
+          >
+            {difficultySelected === 'hard' && <div className="difficulty-checkmark">✓</div>}
+            <div className="difficulty-badge hard">🔥</div>
+            <div className="difficulty-name">Hard</div>
+            <div className="difficulty-count">3 Questions</div>
+          </div>
+
+          <div 
+            className={`difficulty-option prep ${difficultySelected === 'prep' ? 'selected' : ''}`}
+            onClick={() => setDifficultySelected('prep')}
+          >
+            {difficultySelected === 'prep' && <div className="difficulty-checkmark">✓</div>}
+            <div className="difficulty-badge prep">⚡</div>
+            <div className="difficulty-name">Interview Prep</div>
+            <div className="difficulty-count">Mixed Questions</div>
+          </div>
+        </div>
+      </div>
+
       {/* CAMERA + SCREEN */}
       <div className="permission-grid">
 
@@ -725,11 +938,12 @@ return(
           <div className={`readiness-dot ${camEnabled ? "lit" : ""}`}/>
           <div className={`readiness-dot ${screenEnabled ? "lit" : ""}`}/>
           <div className={`readiness-dot ${fullEnabled ? "lit" : ""}`}/>
-          <span>{checksCompleted && camEnabled && screenEnabled && fullEnabled ? "All checks passed — ready to begin" : `${[camEnabled,screenEnabled,fullEnabled].filter(Boolean).length} of 3 checks complete`}</span>
+          <div className={`readiness-dot ${difficultySelected ? "lit" : ""}`}/>
+          <span>{checksCompleted && camEnabled && screenEnabled && fullEnabled && difficultySelected ? "All checks passed — ready to begin" : `${[camEnabled,screenEnabled,fullEnabled,difficultySelected].filter(Boolean).length} of 4 checks complete`}</span>
         </div>
         <button
           className="start-btn"
-          disabled={!checksCompleted || !fullEnabled}
+          disabled={!checksCompleted || !fullEnabled || !difficultySelected}
           onClick={async () => {
             // Release camera/mic so DSA Interview can re-acquire it cleanly
             if (camRef.current?.srcObject) {
@@ -758,6 +972,7 @@ return(
             // Keep screen-share stream alive and pass it to interview page
             // to avoid prompting the user again.
             window.__goalnowScreenStream = screenStream
+            window.__goalnowDifficulty = difficultySelected
             navigate("/dsa-interview")
           }}
         >
