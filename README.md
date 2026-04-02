@@ -1,4 +1,4 @@
-# Project Title
+# Intbar
 
 A full-stack interview system designed to simulate real-time technical interviews using AI, code execution APIs, and proctoring features. The platform evaluates candidates through coding, voice interaction, and behavioral monitoring.
 
