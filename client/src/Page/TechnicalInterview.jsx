@@ -47,6 +47,8 @@ export default function TechnicalInterview() {
   const [shuffledQuestions,   setShuffledQuestions]   = useState([])
   const [isSubmittingAnswer,  setIsSubmittingAnswer]  = useState(false)
   const [isGenerating,        setIsGenerating]        = useState(true)
+  const isMicActiveRef       = useRef(false)
+  const isRecognizingRef     = useRef(false)
 
   const NUM_Q   = 10
   const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
@@ -314,25 +316,52 @@ export default function TechnicalInterview() {
   useEffect(() => {
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition
     if (SR) {
+      console.log('SR is supported, initializing')
       recognitionRef.current = new SR()
       recognitionRef.current.continuous     = true
       recognitionRef.current.interimResults = true
       recognitionRef.current.language       = 'en-US'
+
+      recognitionRef.current.onstart = () => {
+        isRecognizingRef.current = true
+        console.log('SR onstart: Speech recognition started listening')
+      }
+
       recognitionRef.current.onresult = (e) => {
-        for (let i = e.resultIndex; i < e.results.length; i++)
-          if (e.results[i].isFinal)
-            setTranscribedText(p => p + ' ' + e.results[i][0].transcript)
-      }
-      recognitionRef.current.onerror = (e) => {
-        if (e.error === 'no-speech') return;
-        console.error('SR error:', e.error);
-      }
-      recognitionRef.current.onend = () => {
-        // Try to automatically restart recognition if the mic should still be active
-        if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
-          try { recognitionRef.current?.start() } catch (err) {}
+        console.log('SR onresult fired. resultIndex:', e.resultIndex, 'length:', e.results.length)
+        for (let i = e.resultIndex; i < e.results.length; i++) {
+          const transcript = e.results[i][0].transcript
+          if (e.results[i].isFinal) {
+            console.log('SR onresult final transcript:', transcript)
+            setTranscribedText(p => p + ' ' + transcript)
+          } else {
+            console.log('SR onresult interim transcript:', transcript)
+          }
         }
       }
+      recognitionRef.current.onerror = (e) => {
+        if (e.error === 'no-speech') {
+          console.warn('SR onerror: no-speech (ignoring)')
+          return;
+        }
+        console.error('SR error event:', e.error)
+      }
+      recognitionRef.current.onend = () => {
+        isRecognizingRef.current = false
+        console.log('SR onend: Speech recognition stopped')
+        // Try to automatically restart recognition if the mic should still be active
+        if (isMicActiveRef.current) {
+          console.log('SR onend: isMicActiveRef is true, attempting restart')
+          try {
+            recognitionRef.current?.start()
+            console.log('SR onend: restart started successfully')
+          } catch (err) {
+            console.error('SR onend restart error:', err)
+          }
+        }
+      }
+    } else {
+      console.error('Speech recognition not supported in this browser.')
     }
     setAuthToken(localStorage.getItem('authToken'))
   }, [])
@@ -674,26 +703,38 @@ export default function TechnicalInterview() {
 
   // ─── MIC TOGGLE ───────────────────────────────────────────────────────────
   const handleMicToggle = async () => {
+    console.log('handleMicToggle called. isMicActive:', isMicActive, 'hasStopped:', hasStopped)
     if (!isMicActive && !hasStopped) {
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-        const mr = new MediaRecorder(stream)
-        mediaRecorderRef.current = mr
-        mr.start()
+        isMicActiveRef.current = true
         setIsRecording(true)
         setIsMicActive(true)
         setTranscribedText("")
-        recognitionRef.current?.start()
+        
+        if (isRecognizingRef.current) {
+          console.log('SR is currently running. Stopping it so onend can cleanly restart it.')
+          try { recognitionRef.current?.stop() } catch (err) {}
+        } else {
+          console.log('Starting SpeechRecognition natively...')
+          recognitionRef.current?.start()
+          console.log('Started SpeechRecognition successfully')
+        }
       } catch(e) {
-        console.error('Mic error:', e)
+        console.error('Mic error in handleMicToggle:', e)
+        isMicActiveRef.current = false
+        setIsRecording(false)
+        setIsMicActive(false)
       }
     } else if (isMicActive) {
-      try { mediaRecorderRef.current?.stop() } catch(e) {}
-      try { mediaRecorderRef.current?.stream.getTracks().forEach(t => t.stop()) } catch(e) {}
-      try { recognitionRef.current?.stop() } catch(e) {}
+      console.log('Stopping mic...')
+      isMicActiveRef.current = false
       setIsRecording(false)
       setIsMicActive(false)
       setHasStopped(true)
+      try { mediaRecorderRef.current?.stop() } catch(e) { console.error('Error stopping MR:', e) }
+      try { mediaRecorderRef.current?.stream.getTracks().forEach(t => t.stop()) } catch(e) { console.error('Error stopping tracks:', e) }
+      try { recognitionRef.current?.stop() } catch(e) { console.error('Error stopping SR:', e) }
+      console.log('Mic stopped and state updated.')
     }
   }
 
@@ -731,6 +772,11 @@ export default function TechnicalInterview() {
 
     const submitted = await submitCurrentAnswer()
     if (!submitted) return
+
+    isMicActiveRef.current = false
+    try { mediaRecorderRef.current?.stop() } catch(e) {}
+    try { mediaRecorderRef.current?.stream.getTracks().forEach(t => t.stop()) } catch(e) {}
+    try { recognitionRef.current?.stop() } catch(e) {}
 
     if (currentQuestionIdx < NUM_Q - 1) {
       setCurrentQuestionIdx(p => p + 1)
