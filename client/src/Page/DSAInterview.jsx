@@ -17,8 +17,6 @@ export default function DSAInterview() {
   const [testCases, setTestCases] = useState([])
   const [selectedTestCase, setSelectedTestCase] = useState(0)
   const [testResults, setTestResults] = useState({})
-  const [manualInput, setManualInput] = useState("")
-  const [showInputBox, setShowInputBox] = useState(false)
   const [manualOutput, setManualOutput] = useState("")
   const [manualError, setManualError] = useState("")
   const [currentQuestionNumber, setCurrentQuestionNumber] = useState(1)
@@ -26,34 +24,81 @@ export default function DSAInterview() {
   const [showNextButton, setShowNextButton] = useState(false)
   const [allTestsPassed, setAllTestsPassed] = useState(false)
   const [fullscreenViolation, setFullscreenViolation] = useState(false)
+  const [allQuestions, setAllQuestions] = useState([])
+  const [difficulty, setDifficulty] = useState(null)
+  const [timeRemaining, setTimeRemaining] = useState(0)
+  const [timerActive, setTimerActive] = useState(false)
+  const [showTimerWarning, setShowTimerWarning] = useState(false)
 
   useEffect(() => {
-    const loadQuestion = async () => {
+    const loadQuestions = async () => {
       try {
         setQuestionLoading(true)
         setQuestionError("")
 
-        const response = await fetch("http://localhost:5000/api/questions/random")
+        // Get difficulty from window variable set by DSA.jsx
+        const selectedDifficulty = window.__goalnowDifficulty || 'easy'
+        setDifficulty(selectedDifficulty)
 
-        if (!response.ok) {
-          throw new Error(`Failed to fetch question: ${response.status}`)
+        let questionsToLoad = []
+
+        if (selectedDifficulty === 'prep') {
+          // For interview prep, fetch questions from all difficulties and shuffle
+          try {
+            const easyRes = await fetch("http://localhost:5000/api/questions/all?count=2&difficulty=easy")
+            const mediumRes = await fetch("http://localhost:5000/api/questions/all?count=2&difficulty=medium")
+            const hardRes = await fetch("http://localhost:5000/api/questions/all?count=1&difficulty=hard")
+
+            const easyData = easyRes.ok ? await easyRes.json() : { data: [] }
+            const mediumData = mediumRes.ok ? await mediumRes.json() : { data: [] }
+            const hardData = hardRes.ok ? await hardRes.json() : { data: [] }
+
+            questionsToLoad = [
+              ...(easyData.data || []),
+              ...(mediumData.data || []),
+              ...(hardData.data || [])
+            ]
+
+            // Shuffle the questions using Fisher-Yates algorithm
+            for (let i = questionsToLoad.length - 1; i > 0; i--) {
+              const j = Math.floor(Math.random() * (i + 1));
+              [questionsToLoad[i], questionsToLoad[j]] = [questionsToLoad[j], questionsToLoad[i]]
+            }
+          } catch (err) {
+            console.error('Error fetching interview prep questions:', err)
+            throw new Error('Failed to load interview prep questions')
+          }
+        } else {
+          // For specific difficulty, fetch 5 questions of that difficulty
+          const response = await fetch(`http://localhost:5000/api/questions/all?count=5&difficulty=${selectedDifficulty}`)
+
+          if (!response.ok) {
+            throw new Error(`Failed to fetch questions: ${response.status}`)
+          }
+
+          const data = await response.json()
+          questionsToLoad = data.data || []
         }
 
-        const data = await response.json()
-        const question = data.data
-        setCurrentQuestion(question)
+        if (questionsToLoad.length === 0) {
+          throw new Error(`No ${selectedDifficulty} questions available`)
+        }
 
-        if (!question.testCases || !Array.isArray(question.testCases)) {
+        setAllQuestions(questionsToLoad)
+        const firstQuestion = questionsToLoad[0]
+        setCurrentQuestion(firstQuestion)
+
+        if (!firstQuestion.testCases || !Array.isArray(firstQuestion.testCases)) {
           throw new Error(
             "Question data error: testCases is not an array. Make sure you've seeded the database with: node server/scripts/seedQuestions.js"
           )
         }
 
-        if (question.testCases.length === 0) {
+        if (firstQuestion.testCases.length === 0) {
           throw new Error("This question has no test cases")
         }
 
-        const formattedTestCases = question.testCases.map((tc, idx) => {
+        const formattedTestCases = firstQuestion.testCases.map((tc, idx) => {
           if (tc.input === undefined || tc.output === undefined) {
             throw new Error(`Test case ${idx} is missing input or output property`)
           }
@@ -67,8 +112,8 @@ export default function DSAInterview() {
 
         setTestCases(formattedTestCases)
 
-        if (question.starterCode && question.starterCode["71"]) {
-          setCode(question.starterCode["71"])
+        if (firstQuestion.starterCode && firstQuestion.starterCode["71"]) {
+          setCode(firstQuestion.starterCode["71"])
         }
       } catch (err) {
         setQuestionError(err.message)
@@ -77,7 +122,7 @@ export default function DSAInterview() {
       }
     }
 
-    loadQuestion()
+    loadQuestions()
   }, [])
 
   const autoSubmitWithViolation = useCallback(async () => {
@@ -215,6 +260,101 @@ export default function DSAInterview() {
     "54": { name: "C++",        ext: ".cpp",  monacoLang: "cpp"        }
   }
 
+  // Timer effect - runs countdown and auto-submits when time is up
+  useEffect(() => {
+    let timerInterval
+
+    if (timerActive && timeRemaining > 0) {
+      timerInterval = setInterval(() => {
+        setTimeRemaining(prev => {
+          const newTime = prev - 1
+          
+          // Show warning at last 10 seconds
+          if (newTime === 10 && !showTimerWarning) {
+            setShowTimerWarning(true)
+            // Auto-hide warning after 3 seconds
+            setTimeout(() => setShowTimerWarning(false), 3000)
+          }
+          
+          return newTime
+        })
+      }, 1000)
+    } else if (timerActive && timeRemaining === 0) {
+      // Time's up - auto-submit
+      setTimerActive(false)
+      handleTimeExpired()
+    }
+
+    return () => {
+      if (timerInterval) clearInterval(timerInterval)
+    }
+  }, [timerActive, timeRemaining, showTimerWarning])
+
+  // Auto-submit when timer expires
+  const handleTimeExpired = async () => {
+    setIsRunning(true)
+    setOutput("Time expired! Auto-submitting your solution...")
+    
+    // Auto submit without waiting for user input
+    if (!code.trim()) {
+      setError("No code to submit")
+      setIsRunning(false)
+      setTimeout(() => moveToNextQuestion(), 2000)
+      return
+    }
+
+    try {
+      const res = await fetch("http://localhost:5000/api/submit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userCode: code,
+          questionId: currentQuestion._id,
+          languageId: language,
+          userId: "user-123"
+        })
+      })
+
+      if (!res.ok) {
+        const errorData = await res.json()
+        setError(`Submission Error: ${errorData.error || "Unknown error"}`)
+      } else {
+        const data = await res.json()
+        const results = data.publicTests?.results || data.results || data.testResults || []
+        const passedCount = data.submission?.passedTests ?? data.passed ?? results.filter(r => r?.passed).length
+        const totalCount = data.submission?.totalTests ?? data.total ?? results.length
+
+        const sessionData = {
+          questionNumber: currentQuestionNumber,
+          questionId: currentQuestion._id,
+          questionTitle: currentQuestion.title,
+          difficulty: currentQuestion.difficulty,
+          totalTests: totalCount,
+          passedTests: passedCount,
+          marks: Math.min(passedCount, 3),
+          allTestsPassed: false,
+          code: code,
+          language: language,
+          timedOut: true
+        }
+
+        const updatedSessions = [...testSessions, sessionData]
+        setTestSessions(updatedSessions)
+
+        if (currentQuestionNumber >= allQuestions.length) {
+          setTimeout(() => navigateToResults(updatedSessions), 1500)
+        } else {
+          setTimeout(() => moveToNextQuestion(), 1500)
+        }
+      }
+    } catch (err) {
+      setError(`Network Error: ${err.message}`)
+      setTimeout(() => moveToNextQuestion(), 2000)
+    } finally {
+      setIsRunning(false)
+    }
+  }
+
   useEffect(() => {
     if (currentQuestion?.starterCode?.[language]) {
       setCode(currentQuestion.starterCode[language])
@@ -224,58 +364,35 @@ export default function DSAInterview() {
     setTestResults({})
   }, [language, currentQuestion])
 
-  const runCode = async () => {
-    setShowInputBox(!showInputBox)
-    setOutput("")
-    setError("")
-    setTestResults({})
-    setManualOutput("")
-    setManualError("")
+  // Initialize timer when question changes
+  useEffect(() => {
+    if (currentQuestion && currentQuestion.difficulty) {
+      const timeLimit = getTimeLimitByDifficulty(currentQuestion.difficulty)
+      setTimeRemaining(timeLimit)
+      setTimerActive(true)
+      setShowTimerWarning(false)
+    }
+  }, [currentQuestion])
+
+  // Get time limit based on difficulty (in seconds)
+  const getTimeLimitByDifficulty = (diff) => {
+    const limits = {
+      easy: 20 * 60,    // 20 minutes
+      medium: 40 * 60,  // 40 minutes
+      hard: 60 * 60     // 60 minutes
+    }
+    return limits[diff] || limits.easy
   }
 
-  const runWithManualInput = async () => {
-    if (!code.trim()) { setManualError("Please write some code first"); return }
+  // Format seconds to MM:SS
+  const formatTime = (seconds) => {
+    const mins = Math.floor(seconds / 60)
+    const secs = seconds % 60
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
+  }
 
-    setIsRunning(true)
-    setManualError("")
-    setManualOutput("")
-
-    try {
-      const res = await fetch("http://localhost:5000/api/run", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          code,
-          language_id: parseInt(language),
-          input: manualInput
-        })
-      })
-
-      if (!res.ok) {
-        const errorData = await res.json()
-        setManualError(`Server Error (${res.status}): ${errorData.error || "Unknown error"}`)
-        return
-      }
-
-      const data = await res.json()
-
-      if (data.status?.id === 3) {
-        setManualOutput(data.stdout || "")
-        return data.stdout || ""
-      } else if (data.status?.id === 5) {
-        setManualError(`Compilation Error: ${data.compile_output || "Unknown error"}`)
-      } else if (data.status?.id === 4) {
-        setManualError(`Runtime Error: ${data.stderr || "Unknown error"}`)
-      } else if (data.error) {
-        setManualError(`Error: ${data.error}${data.details ? ` — ${data.details}` : ""}`)
-      } else {
-        setManualError(`Status ${data.status?.id}: ${data.status?.description || "Unknown status"}`)
-      }
-    } catch (err) {
-      setManualError(`Network Error: ${err.message}`)
-    } finally {
-      setIsRunning(false)
-    }
+  const runWithManualInput = () => {
+    // This function is no longer used - Run Code button has been removed
   }
 
   const runAllTests = async () => {
@@ -467,7 +584,7 @@ export default function DSAInterview() {
   }
 
   const moveToNextQuestion = () => {
-    if (currentQuestionNumber < 3) {
+    if (currentQuestionNumber < allQuestions.length) {
       // Load next question
       setCurrentQuestionNumber(currentQuestionNumber + 1)
       setCode("")
@@ -478,7 +595,7 @@ export default function DSAInterview() {
       setAllTestsPassed(false)
       loadNewQuestion()
     } else {
-      // All 3 questions completed - navigate to score tracker
+      // All questions completed - navigate to score tracker
       navigateToResults()
     }
   }
@@ -488,25 +605,24 @@ export default function DSAInterview() {
       setQuestionLoading(true)
       setQuestionError("")
 
-      const response = await fetch("http://localhost:5000/api/questions/random")
+      // Load from the allQuestions array based on currentQuestionNumber (1-indexed)
+      const nextQuestion = allQuestions[currentQuestionNumber - 1]
 
-      if (!response.ok) {
-        throw new Error(`Failed to fetch question: ${response.status}`)
+      if (!nextQuestion) {
+        throw new Error("Question not found")
       }
 
-      const data = await response.json()
-      const question = data.data
-      setCurrentQuestion(question)
+      setCurrentQuestion(nextQuestion)
 
-      if (!question.testCases || !Array.isArray(question.testCases)) {
+      if (!nextQuestion.testCases || !Array.isArray(nextQuestion.testCases)) {
         throw new Error("Question data error: testCases is not an array")
       }
 
-      if (question.testCases.length === 0) {
+      if (nextQuestion.testCases.length === 0) {
         throw new Error("This question has no test cases")
       }
 
-      const formattedTestCases = question.testCases.map((tc, idx) => {
+      const formattedTestCases = nextQuestion.testCases.map((tc, idx) => {
         if (tc.input === undefined || tc.output === undefined) {
           throw new Error(`Test case ${idx} is missing input or output property`)
         }
@@ -520,8 +636,8 @@ export default function DSAInterview() {
 
       setTestCases(formattedTestCases)
 
-      if (question.starterCode && question.starterCode["71"]) {
-        setCode(question.starterCode["71"])
+      if (nextQuestion.starterCode && nextQuestion.starterCode["71"]) {
+        setCode(nextQuestion.starterCode["71"])
       }
     } catch (err) {
       setQuestionError(err.message)
@@ -727,9 +843,6 @@ export default function DSAInterview() {
                 Fullscreen Exited
               </div>
             )}
-            <button className="btn btn-run"      onClick={runCode}        disabled={isRunning}>
-              {isRunning ? "Running..." : "Run Code"}
-            </button>
             <button className="btn btn-test-all" onClick={runAllTests}    disabled={isRunning}>
               {isRunning ? "Running..." : "Run All Tests"}
             </button>
@@ -745,9 +858,9 @@ export default function DSAInterview() {
                 fontWeight: "600"
               } : {}}
             >
-              {isRunning ? (currentQuestionNumber === 3 ? "Submitting Test..." : "Submitting...") : (currentQuestionNumber === 3 ? "Submit Test" : "Submit Solution")}
+              {isRunning ? (currentQuestionNumber === allQuestions.length ? "Submitting Test..." : "Submitting...") : (currentQuestionNumber === allQuestions.length ? "Submit Test" : "Submit Solution")}
             </button>
-            {showNextButton && currentQuestionNumber < 3 && (
+            {showNextButton && currentQuestionNumber < allQuestions.length && (
               <button 
                 className="btn btn-submit" 
                 onClick={moveToNextQuestion}
@@ -768,10 +881,38 @@ export default function DSAInterview() {
         {/* Right Panel — Output */}
         <div className="dsa-right-panel">
           <div className="output-header">
-            <h3>Output</h3>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%" }}>
+              <h3 style={{ margin: 0 }}>Output</h3>
+              <div style={{
+                fontSize: "1.1rem",
+                fontWeight: "700",
+                padding: "6px 12px",
+                borderRadius: "6px",
+                backgroundColor: timeRemaining < 300 ? "#ffebee" : "#f5f5f5",
+                color: timeRemaining < 300 ? "#c62828" : "#24344d",
+                transition: "all 0.3s ease"
+              }}>
+                ⏱️ {formatTime(timeRemaining)}
+              </div>
+            </div>
+            {showTimerWarning && (
+              <div style={{
+                marginTop: "8px",
+                padding: "8px 12px",
+                backgroundColor: "#fff3e0",
+                border: "1px solid #ffb74d",
+                borderRadius: "6px",
+                fontSize: "0.85rem",
+                color: "#e65100",
+                fontWeight: "600",
+                animation: "pulse 0.5s ease-in-out"
+              }}>
+                ⚠️ Time running out! Less than 10 seconds remaining.
+              </div>
+            )}
           </div>
 
-          {showInputBox && (
+          {false && (
             <div className="output-section input-section" style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
               <div className="section-label">Custom Input</div>
               <textarea
