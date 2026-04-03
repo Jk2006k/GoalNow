@@ -7,7 +7,7 @@
 
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import CodeSubmission from '../components/CodeSubmission';
+import CodeSubmission from '../../../technical/components/CodeSubmission';
 import useCodeEvaluation from '../hooks/useCodeEvaluation';
 
 const DSAInterviewWithEvaluation = ({ questionId }) => {

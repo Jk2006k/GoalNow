@@ -1,5 +1,5 @@
 import React, { useRef, useState } from "react"
-import HomePageNavbar from "../components/HomePageNavbar"
+import HomePageNavbar from "../../shared/components/HomePageNavbar"
 
 export default function TechnicalEntry(){
 

@@ -1,7 +1,7 @@
 import React, { useRef, useState } from "react"
-import HomePageNavbar from "../components/HomePageNavbar"
+import HomePageNavbar from "../../shared/components/HomePageNavbar"
 import { useNavigate } from "react-router-dom"
-import { Rocket, Briefcase, Chart, Bulb, Megaphone, Phone, Laptop, ThumbsUp, ImageIcon, D } from "../components/Doodles"
+import { Rocket, Briefcase, Chart, Bulb, Megaphone, Phone, Laptop, ThumbsUp, ImageIcon, D } from "../../shared/components/Doodles"
 
 export default function BehaviouralInstructions(){
 
