@@ -1,3 +1,0 @@
-Error: Missing GROQ_API_KEY
-    at J:\Projects\intbar\GoalNow\server\routes\evaluation.js:221:25
-    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
