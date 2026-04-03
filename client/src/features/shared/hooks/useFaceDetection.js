@@ -1,4 +1,4 @@
-import { useRef, useState, useCallback, useEffect } from 'react'
+import { useRef, useState, useEffect } from 'react'
 import { loadScript } from '../utils/mediaUtils'
 
 export function useFaceDetection(camRef) {
@@ -109,11 +109,12 @@ export function useFaceDetection(camRef) {
       active = false
       if (camInstance) camInstance.stop()
       if (faceMeshRef.current) {
-        try { faceMeshRef.current.close() } catch (e) {}
+        try { faceMeshRef.current.close() } catch (_) {}
       }
-      if (camRef.current?.srcObject) {
-        camRef.current.srcObject.getTracks().forEach(t => t.stop())
-        camRef.current.srcObject = null
+      const cam = camRef.current
+      if (cam?.srcObject) {
+        cam.srcObject.getTracks().forEach(t => t.stop())
+        cam.srcObject = null
       }
     }
   }, [camRef])

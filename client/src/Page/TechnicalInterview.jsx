@@ -1,6 +1,6 @@
 import React, { useRef, useState, useEffect, useCallback } from "react"
 import { useNavigate } from "react-router-dom"
-import apiClient, { authService } from "../services/authService"
+import apiClient from "../services/authService"
 
 function loadScript(src) {
   return new Promise((resolve, reject) => {
@@ -25,7 +25,6 @@ export default function TechnicalInterview() {
   const interviewVideoStartedAtRef = useRef(null)
   const faceMeshRef        = useRef(null)
   const cameraUtilsRef     = useRef(null)
-  const lastResultRef      = useRef({ faces: 0, yaw: 0, pitch: 0 })
   const screenshotIntervalRef = useRef(null)
   const screenCaptureReadyRef = useRef(false)
   const hasSubmittedRef = useRef(false)
@@ -36,7 +35,6 @@ export default function TechnicalInterview() {
   const [currentQuestionIdx, setCurrentQuestionIdx] = useState(0)
   const [timeLeft,            setTimeLeft]            = useState(20 * 60)
   const [isMicActive,         setIsMicActive]         = useState(false)
-  const [isRecording,         setIsRecording]         = useState(false)
   const [hasStopped,          setHasStopped]          = useState(false)
   const [transcribedText,     setTranscribedText]     = useState("")
   const [evaluationStatuses,  setEvaluationStatuses]  = useState({})
@@ -47,7 +45,6 @@ export default function TechnicalInterview() {
   const [shuffledQuestions,   setShuffledQuestions]   = useState([])
   const [isSubmittingAnswer,  setIsSubmittingAnswer]  = useState(false)
   const [isGenerating,        setIsGenerating]        = useState(true)
-  const [hasResume,           setHasResume]           = useState(null)
   const [resumeMessage,       setResumeMessage]       = useState(null)
   const [isPersonalized,      setIsPersonalized]      = useState(false)
   const [refreshTrigger,      setRefreshTrigger]      = useState(0)
@@ -146,7 +143,7 @@ export default function TechnicalInterview() {
       interviewVideoRecorderRef.current = null
       interviewVideoStartedAtRef.current = null
     }
-  }, [authToken])
+  }, [])
 
   // ─── Fisher-Yates Shuffle Function ────────────────────────────────────────
   const shuffleArray = (array) => {
@@ -316,11 +313,12 @@ export default function TechnicalInterview() {
       active = false
       if (camInstance) camInstance.stop()
       if (faceMeshRef.current) {
-        try { faceMeshRef.current.close() } catch(e) {}
+        try { faceMeshRef.current.close() } catch { /* ignored */ }
       }
-      if (camRef.current?.srcObject) {
-        camRef.current.srcObject.getTracks().forEach(t => t.stop())
-        camRef.current.srcObject = null
+      const cam = camRef.current
+      if (cam?.srcObject) {
+        cam.srcObject.getTracks().forEach(t => t.stop())
+        cam.srcObject = null
       }
     }
   }, [])
@@ -419,8 +417,8 @@ export default function TechnicalInterview() {
     }
 
     return () => {
-      // Detach only; do not stop global screen-share stream during route lifecycle.
-      if (screenRef.current) screenRef.current.srcObject = null
+      const screen = screenRef.current
+      if (screen) screen.srcObject = null
       screenCaptureReadyRef.current = false
     }
   }, [startInterviewVideoRecording])
@@ -430,7 +428,7 @@ export default function TechnicalInterview() {
     if (timeLeft <= 0) { handleSubmit(); return }
     const t = setInterval(() => setTimeLeft(p => p - 1), 1000)
     return () => clearInterval(t)
-  }, [timeLeft])
+  }, [timeLeft, handleSubmit])
 
   // ─── FULLSCREEN GUARD ─────────────────────────────────────────────────────
   useEffect(() => {
@@ -473,25 +471,18 @@ export default function TechnicalInterview() {
       screenshotIntervalRef.current = null
     }
 
-    // Stop MediaRecorder
-    try { mediaRecorderRef.current?.stop() } catch(e) {}
+    try { mediaRecorderRef.current?.stop() } catch { /* ignored */ }
     if (mediaRecorderRef.current?.stream) {
       mediaRecorderRef.current.stream.getTracks().forEach(t => t.stop())
     }
 
-    // Stop MediaPipe camera loop
-    try { cameraUtilsRef.current?.stop() } catch(e) {}
-
-    // Stop FaceMesh WASM
-    try { faceMeshRef.current?.close() } catch(e) {}
-
-    // Stop raw camera stream on the video element
+    try { cameraUtilsRef.current?.stop() } catch { /* ignored */ }
+    try { faceMeshRef.current?.close() } catch { /* ignored */ }
     if (camRef.current?.srcObject) {
       camRef.current.srcObject.getTracks().forEach(t => t.stop())
       camRef.current.srcObject = null
     }
 
-    // Stop screen share stream used for full-screen screenshots
     if (screenRef.current?.srcObject) {
       screenRef.current.srcObject.getTracks().forEach(t => t.stop())
       screenRef.current.srcObject = null
@@ -499,8 +490,7 @@ export default function TechnicalInterview() {
     window.__goalnowScreenStream = null
     screenCaptureReadyRef.current = false
 
-    // Stop speech recognition
-    try { recognitionRef.current?.stop() } catch(e) {}
+    try { recognitionRef.current?.stop() } catch { /* ignored */ }
   }
 
   const captureAndUploadScreenshot = useCallback(async () => {
@@ -730,13 +720,12 @@ export default function TechnicalInterview() {
     if (!isMicActive && !hasStopped) {
       try {
         isMicActiveRef.current = true
-        setIsRecording(true)
         setIsMicActive(true)
         setTranscribedText("")
         
         if (isRecognizingRef.current) {
           console.log('SR is currently running. Stopping it so onend can cleanly restart it.')
-          try { recognitionRef.current?.stop() } catch (err) {}
+          try { recognitionRef.current?.stop() } catch { /* ignored */ }
         } else {
           console.log('Starting SpeechRecognition natively...')
           recognitionRef.current?.start()
@@ -745,13 +734,11 @@ export default function TechnicalInterview() {
       } catch(e) {
         console.error('Mic error in handleMicToggle:', e)
         isMicActiveRef.current = false
-        setIsRecording(false)
         setIsMicActive(false)
       }
     } else if (isMicActive) {
       console.log('Stopping mic...')
       isMicActiveRef.current = false
-      setIsRecording(false)
       setIsMicActive(false)
       setHasStopped(true)
       try { mediaRecorderRef.current?.stop() } catch(e) { console.error('Error stopping MR:', e) }
@@ -801,15 +788,14 @@ export default function TechnicalInterview() {
     if (!submitted) return
 
     isMicActiveRef.current = false
-    try { mediaRecorderRef.current?.stop() } catch(e) {}
-    try { mediaRecorderRef.current?.stream.getTracks().forEach(t => t.stop()) } catch(e) {}
-    try { recognitionRef.current?.stop() } catch(e) {}
+    try { mediaRecorderRef.current?.stop() } catch { /* ignored */ }
+    try { mediaRecorderRef.current?.stream.getTracks().forEach(t => t.stop()) } catch { /* ignored */ }
+    try { recognitionRef.current?.stop() } catch { /* ignored */ }
 
     if (currentQuestionIdx < NUM_Q - 1) {
       setCurrentQuestionIdx(p => p + 1)
       setHasStopped(false)
       setIsMicActive(false)
-      setIsRecording(false)
       setTranscribedText("")
       return
     }
