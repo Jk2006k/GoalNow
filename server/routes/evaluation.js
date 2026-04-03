@@ -5,28 +5,13 @@ const axios = require('axios');
 const fs = require('fs');
 const path = require('path');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
+const { verifyToken } = require('../middleware/auth');
 const Evaluation = require('../models/Evaluation');
 const ProctoringScreenshot = require('../models/ProctoringScreenshot');
 const ProctoringVideo = require('../models/ProctoringVideo');
 const User = require('../models/User');
 
 const PROCTORING_VIDEO_DIR = path.resolve(__dirname, '../uploads/proctoring');
-
-// Middleware to verify token
-const verifyToken = (req, res, next) => {
-  const token = req.headers.authorization?.split(' ')[1];
-  if (!token) {
-    return res.status(401).json({ message: 'No token provided' });
-  }
-  
-  try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.userId = decoded.userId;
-    next();
-  } catch (error) {
-    return res.status(401).json({ message: 'Invalid token' });
-  }
-};
 
 // Initialize OpenRouter API Key
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY || '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';
@@ -157,58 +142,207 @@ router.post('/generate-technical-questions', verifyToken, async (req, res) => {
     const user = await User.findById(req.userId);
     if (!user) return res.status(404).json({ message: 'User not found' });
 
-    let prompt = `You are an expert technical interviewer. Generate exactly 10 short, open-ended technical interview questions for a candidate. 
-Return ONLY a valid JSON array of strings. Example: ["Question 1", "Question 2", ..., "Question 10"]. No extra text or markdown codeblocks outside the JSON array.`;
+    console.log("[Questions] ========== QUESTION GENERATION START ==========");
+    console.log("[Questions] User ID:", req.userId);
+    console.log("[Questions] Resume exists:", !!user.resume);
+    console.log("[Questions] Resume length:", user.resume?.length || 0);
+    console.log("[Questions] Domain:", user.domain);
 
-    if (user.resume && user.resume.includes('application/pdf')) {
-      const base64Data = user.resume.split(',')[1] || user.resume;
-      console.log("[Questions] Resume found! base64 length:", base64Data.length);
+    let prompt = `You are an expert technical interviewer conducting a technical phone interview.
+
+Your task: Generate exactly 10 technical interview questions.
+
+IMPORTANT REQUIREMENTS:
+1. Questions must be INTERVIEW questions, not coding/implementation tasks
+2. Ask about technical experience and expertise
+3. Ask about technologies, tools, and frameworks
+4. Ask about past projects and technical challenges
+5. Make questions conversational and open-ended
+6. Do NOT ask about coding problems or algorithms
+7. Do NOT ask to write code
+8. Progress from basic to more advanced topics
+9. Focus on assessing depth of knowledge
+
+Return ONLY a valid JSON array of 10 strings. Example format:
+["Question 1", "Question 2", ..., "Question 10"]
+
+No extra text, no markdown, just the JSON array.`;
+
+    let hasPersonalizedResume = false;
+
+    // Try to extract and parse resume
+    if (user.resume && typeof user.resume === 'string' && user.resume.length > 100) {
+      console.log("[Questions] Attempting to parse resume...");
       try {
-        const pdftool = require('pdf-parse');
-        const buffer = Buffer.from(base64Data, 'base64');
-        let text = "";
+        // Extract base64 data
+        let base64Data = user.resume;
+        
+        // Check if it's a data URL
+        if (user.resume.includes(',')) {
+          const parts = user.resume.split(',');
+          base64Data = parts[1] || parts[0];
+          console.log("[Questions] Extracted base64 from data URL");
+        }
+        
+        // Validate base64
+        if (!base64Data || base64Data.length < 100) {
+          console.warn("[Questions] Base64 data too short:", base64Data?.length || 0);
+          throw new Error("Invalid base64 data");
+        }
 
-        if (pdftool && typeof pdftool.PDFParse === 'function') {
-          // pdf-parse v2+
-          const parser = new pdftool.PDFParse({ data: buffer });
-          const result = await parser.getText();
-          text = result.text || "";
-          await parser.destroy();
-        } else {
-          // older pdf-parse
-          const parseFunc = (typeof pdftool === 'function') ? pdftool : (pdftool.default || pdftool);
-          if (typeof parseFunc !== 'function') {
-            throw new Error("pdf-parse is not a function. type: " + typeof pdftool);
+        console.log("[Questions] Converting base64 to buffer...");
+        const buffer = Buffer.from(base64Data, 'base64');
+        console.log("[Questions] Buffer size:", buffer.length, "bytes");
+
+        // Check if buffer looks like PDF (should start with %PDF)
+        const headerStr = buffer.toString('utf8', 0, 4);
+        console.log("[Questions] Buffer header:", headerStr);
+        
+        if (headerStr !== '%PDF') {
+          console.warn("[Questions] Buffer doesn't look like a PDF");
+        }
+
+        console.log("[Questions] Loading pdf-parse...");
+        let text = "";
+        
+        try {
+          // pdf-parse v2.x correct usage
+          const pdfParse = require('pdf-parse');
+          console.log("[Questions] pdf-parse module loaded");
+          
+          // Try to use the default or direct function
+          const parseFunction = typeof pdfParse === 'function' ? pdfParse : pdfParse.default;
+          
+          if (typeof parseFunction !== 'function') {
+            throw new Error("pdf-parse is not a function");
           }
-          const data = await parseFunc(buffer);
+          
+          console.log("[Questions] Calling pdf parser...");
+          const data = await parseFunction(buffer);
           text = data?.text || "";
+          console.log("[Questions] PDF parsed successfully! Text length:", text.length);
+          
+          if (!text || text.length < 50) {
+            throw new Error("PDF parsing returned empty or too short text");
+          }
+        } catch (pdfErr) {
+          console.warn("[Questions] PDF library parsing failed:", pdfErr.message);
+          console.log("[Questions] Attempting manual text extraction...");
+          
+          // Manual PDF text extraction - more careful approach
+          try {
+            const rawText = buffer.toString('latin1');
+            
+            // Find all text objects between parentheses (most reliable PDF text)
+            const textMatches = [];
+            const regex = /\(([^)\\]*(?:\\.[^)\\]*)*)\)/g;
+            let match;
+            
+            while ((match = regex.exec(rawText)) !== null) {
+              let extractedStr = match[1];
+              
+              // Unescape PDF escape sequences
+              extractedStr = extractedStr
+                .replace(/\\n/g, '\n')
+                .replace(/\\r/g, '\r')
+                .replace(/\\t/g, '\t')
+                .replace(/\\\(/g, '(')
+                .replace(/\\\)/g, ')')
+                .replace(/\\\\/g, '\\');
+              
+              // Only keep strings that look like real text (mostly printable ASCII)
+              const printableCount = (extractedStr.match(/[\x20-\x7E\n\r\t]/g) || []).length;
+              if (printableCount > extractedStr.length * 0.6 && extractedStr.length > 2) {
+                textMatches.push(extractedStr);
+              }
+            }
+            
+            text = textMatches.join(' ').substring(0, 5000).trim();
+            
+            // Clean up the text
+            text = text
+              .split('\n')
+              .filter(line => {
+                const cleaned = line.trim();
+                return cleaned.length > 0 && 
+                       !cleaned.match(/^[/\d\s\.]+$/) && // Skip PDF operators
+                       !cleaned.match(/^<<[^>]*>>$/) && // Skip PDF dictionaries
+                       cleaned.length > 2; // Skip very short lines
+              })
+              .join('\n')
+              .substring(0, 5000);
+            
+            console.log("[Questions] Manual extraction complete. Text length:", text.length);
+            
+            if (text && text.length > 50) {
+              console.log("[Questions] First 300 chars:", text.substring(0, 300));
+            }
+          } catch (altErr) {
+            console.warn("[Questions] Manual extraction failed:", altErr.message);
+            text = "";
+          }
         }
         
-        text = text ? text.substring(0, 4000) : ""; 
-        console.log("[Questions] PDF parsed, length:", text.length);
-        
-        if (text && text.trim().length > 10) {
-          prompt += `\n\nThe candidate's resume content to focus on:\n"""\n${text}\n"""\nINSTRUCTIONS for Question Generation:\n1. EXAMINE the resume text above for specific technologies (e.g., React, Java, AWS), projects, and roles.\n2. GENERATE 10 questions that specifically assess depth in these areas.\n3. Do not ask generic behavioral questions; focus on technical depth based on the resume keywords.`;
+        // Final validation and use
+        if (text && text.trim().length > 50) {
+          // Clean up the text a bit more
+          const cleanedText = text
+            .replace(/\s+/g, ' ')
+            .replace(/[^\w\s.,;:()\-]/g, '')
+            .trim()
+            .substring(0, 4000);
+            
+          console.log("[Questions] ✓ Valid resume text extracted!");
+          prompt = `You are an expert technical interviewer conducting a technical phone interview.
+
+CANDIDATE'S RESUME:
+"""
+${cleanedText}
+"""
+
+Your task: Generate exactly 10 technical interview questions based on ONLY the resume content above.
+
+IMPORTANT REQUIREMENTS:
+1. Questions must be INTERVIEW questions, not implementation/coding tasks
+2. Ask about their EXPERIENCE and EXPERTISE from the resume
+3. Ask about technologies, tools, and frameworks they mention
+4. Ask about past projects and challenges they solved
+5. Ask about their technical depth in specific areas
+6. Make questions conversational and open-ended
+7. Progress from basic to more advanced topics
+8. Focus on what they claim to know on their resume
+9. Do NOT ask about coding problems or algorithms
+10. Do NOT ask generic questions - be specific to their background
+
+Return ONLY a valid JSON array of 10 strings. Example format:
+["Question 1", "Question 2", ..., "Question 10"]
+
+No extra text, no markdown, just the JSON array.`;
+          hasPersonalizedResume = true;
         } else {
-          console.warn("[Questions] PDF parser returned empty text. Using fallback.");
+          console.warn("[Questions] No usable resume text extracted. Length:", text?.length || 0);
         }
-      } catch (err) {
-        console.warn("[Questions] pdf-parse failed with error. Trying fallback approach:", err.message);
-        // Fallback or log only
+      } catch (resumeErr) {
+        console.warn("[Questions] Resume parsing error:", resumeErr.message);
       }
-    } else if (user.domain) {
-      console.log("[Questions] No PDF found. Using domain:", user.domain);
-      prompt += `\n\nThe candidate's domain is: ${user.domain}. Base the questions on this domain.`;
+    } else {
+      console.log("[Questions] No valid resume found");
+      if (user.domain) {
+        console.log("[Questions] Using domain instead:", user.domain);
+        prompt += `\n\nCandidate domain: ${user.domain}. Generate role-specific technical interview questions.`;
+      }
     }
+
+    console.log("[Questions] Will use personalized questions:", hasPersonalizedResume);
 
     const groqKey = process.env.GROQ_API_KEY;
     if (!groqKey) throw new Error("Missing GROQ_API_KEY");
     
-    console.log("[Questions] Sending prompt to Groq...");
+    console.log("[Questions] Calling Groq API...");
     const groqResponse = await axios.post(
       'https://api.groq.com/openai/v1/chat/completions',
       {
-        model: typeof GROQ_MODEL !== 'undefined' ? GROQ_MODEL : 'llama-3.1-8b-instant',
+        model: 'llama-3.1-8b-instant',
         messages: [{ role: 'user', content: prompt }],
         temperature: 0.7,
         max_tokens: 1500,
@@ -222,21 +356,27 @@ Return ONLY a valid JSON array of strings. Example: ["Question 1", "Question 2",
     );
     
     let textOut = groqResponse.data?.choices?.[0]?.message?.content || '';
-    console.log("[Questions] Received response from Groq. Length:", textOut.length);
+    console.log("[Questions] Groq response received. Length:", textOut.length);
+    
     const match = textOut.match(/\[[\s\S]*\]/);
-    if (!match) throw new Error("Invalid output from AI: " + textOut);
+    if (!match) {
+      console.error("[Questions] Invalid response format:", textOut.substring(0, 200));
+      throw new Error("Invalid output from AI");
+    }
     
     let questions = JSON.parse(match[0]);
     while (questions.length < 10) questions.push("Can you describe a challenging technical problem you solved?");
     questions = questions.slice(0, 10);
-    console.log("[Questions] Successfully returning 10 generated questions!");
+    
+    console.log("[Questions] ✓ Successfully generated", questions.length, "questions");
+    console.log("[Questions] Personalized:", hasPersonalizedResume);
+    console.log("[Questions] ========== QUESTION GENERATION END ==========");
 
-    res.json({ success: true, questions });
+    res.json({ success: true, questions, isPersonalized: hasPersonalizedResume });
   } catch (error) {
-    console.error("Error generating technical questions:", error);
-    try {
-      require('fs').writeFileSync('debug-questions-error.txt', error.stack || String(error));
-    } catch(e){}
+    console.error("[Questions] ❌ GENERATION FAILED:", error.message);
+    console.error("[Questions] Error details:", error);
+    
     const fallback = [
       "Explain a complex project you worked on recently.",
       "How do you ensure code quality and maintainability?",
@@ -249,8 +389,8 @@ Return ONLY a valid JSON array of strings. Example: ["Question 1", "Question 2",
       "How do you handle security vulnerabilities in your applications?",
       "What is your preferred tech stack and why?"
     ];
-    // Return fallback but also the error if possible
-    res.json({ success: true, questions: fallback, error: error.message });
+    
+    res.json({ success: true, questions: fallback, isPersonalized: false, error: error.message });
   }
 });
 

@@ -1,6 +1,6 @@
 import React, { useRef, useState, useEffect, useCallback } from "react"
 import { useNavigate } from "react-router-dom"
-import axios from "axios"
+import apiClient, { authService } from "../services/authService"
 
 function loadScript(src) {
   return new Promise((resolve, reject) => {
@@ -47,11 +47,14 @@ export default function TechnicalInterview() {
   const [shuffledQuestions,   setShuffledQuestions]   = useState([])
   const [isSubmittingAnswer,  setIsSubmittingAnswer]  = useState(false)
   const [isGenerating,        setIsGenerating]        = useState(true)
+  const [hasResume,           setHasResume]           = useState(null)
+  const [resumeMessage,       setResumeMessage]       = useState(null)
+  const [isPersonalized,      setIsPersonalized]      = useState(false)
+  const [refreshTrigger,      setRefreshTrigger]      = useState(0)
   const isMicActiveRef       = useRef(false)
   const isRecognizingRef     = useRef(false)
 
   const NUM_Q   = 10
-  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
 
   const startInterviewVideoRecording = useCallback(() => {
     const stream = window.__goalnowScreenStream || screenRef.current?.srcObject
@@ -123,14 +126,16 @@ export default function TechnicalInterview() {
         reader.readAsDataURL(blob)
       })
 
-      await axios.post(`${API_URL}/evaluation/proctoring/video`, {
+      const token = localStorage.getItem('authToken');
+      if (!token) throw new Error('CRITICAL: No authToken in localStorage! User must log in.');
+      console.log('✓ Video upload: Auth token found, length:', token.length);
+      
+      await apiClient.post('/evaluation/proctoring/video', {
         interviewType: 'technical',
         videoData,
         mimeType: blob.type || 'video/webm',
         startedAt: interviewVideoStartedAtRef.current,
         endedAt: new Date().toISOString(),
-      }, {
-        headers: { Authorization: `Bearer ${authToken}` }
       })
 
       console.log('Interview video uploaded successfully')
@@ -141,7 +146,7 @@ export default function TechnicalInterview() {
       interviewVideoRecorderRef.current = null
       interviewVideoStartedAtRef.current = null
     }
-  }, [API_URL, authToken])
+  }, [authToken])
 
   // ─── Fisher-Yates Shuffle Function ────────────────────────────────────────
   const shuffleArray = (array) => {
@@ -162,43 +167,51 @@ export default function TechnicalInterview() {
     if (!authToken) return
 
     const fetchTechnicalQuestions = async () => {
+      setIsGenerating(true)
       try {
-        const res = await axios.post(`${API_URL}/evaluation/generate-technical-questions`, {}, {
-          headers: { Authorization: `Bearer ${authToken}` }
-        })
-        const questions = res.data.questions || [
-            "Explain a complex project you worked on recently.",
-            "How do you ensure code quality and maintainability?",
-            "Can you describe a time you had to optimize performance?",
-            "What is your approach to debugging difficult issues?",
-            "Describe a challenging technical architectural decision you made.",
-            "How do you stay up-to-date with new technologies?",
-            "Tell me about a time you disagreed with a technical team member.",
-            "Explain the concept of RESTful APIs and best practices.",
-            "How do you handle security vulnerabilities in your applications?",
-            "What is your preferred tech stack and why?"
-        ];
-        setShuffledQuestions(questions.slice(0, NUM_Q))
+        const token = localStorage.getItem('authToken');
+        if (!token) throw new Error('Auth token not found');
+        console.log('✓ Generate questions: Auth token found, length:', token.length);
+        
+        const res = await apiClient.post('/evaluation/generate-technical-questions', {})
+        const questions = res.data.questions || [];
+        const personalized = res.data.isPersonalized || false;
+        
+        console.log('[Questions] Personalized:', personalized);
+        
+        // Shuffle the questions
+        const shuffledQuestions = shuffleArray(questions.slice(0, NUM_Q));
+        setShuffledQuestions(shuffledQuestions);
+        setIsPersonalized(personalized);
+        
+        if (personalized) {
+          setResumeMessage('Personalized questions generated from your resume!');
+        } else {
+          setResumeMessage('No resume found. Update your profile with your resume to get personalized technical questions.');
+        }
       } catch (err) {
         console.error("Failed to generate questions:", err)
-        setShuffledQuestions([
-            "Explain a complex project you worked on recently.",
-            "How do you ensure code quality and maintainability?",
-            "Can you describe a time you had to optimize performance?",
-            "What is your approach to debugging difficult issues?",
-            "Describe a challenging technical architectural decision you made.",
-            "How do you stay up-to-date with new technologies?",
-            "Tell me about a time you disagreed with a technical team member.",
-            "Explain the concept of RESTful APIs and best practices.",
-            "How do you handle security vulnerabilities in your applications?",
-            "What is your preferred tech stack and why?"
-        ])
+        const fallbackQuestions = [
+          "Explain a complex project you worked on recently.",
+          "How do you ensure code quality and maintainability?",
+          "Can you describe a time you had to optimize performance?",
+          "What is your approach to debugging difficult issues?",
+          "Describe a challenging technical architectural decision you made.",
+          "How do you stay up-to-date with new technologies?",
+          "Tell me about a time you disagreed with a technical team member.",
+          "Explain the concept of RESTful APIs and best practices.",
+          "How do you handle security vulnerabilities in your applications?",
+          "What is your preferred tech stack and why?"
+        ];
+        setShuffledQuestions(shuffleArray(fallbackQuestions));
+        setIsPersonalized(false);
+        setResumeMessage('⚠️ Unable to generate custom questions. Using general questions.');
       } finally {
         setIsGenerating(false)
       }
     }
     fetchTechnicalQuestions()
-  }, [authToken, API_URL])
+  }, [authToken, refreshTrigger])
 
   // ─── MEDIAPIPE SETUP ──────────────────────────────────────────────────────
   useEffect(() => {
@@ -638,12 +651,17 @@ export default function TechnicalInterview() {
     console.log(`📸 Screenshot: ${sizeMB}MB`)
 
     try {
-      const response = await axios.post(`${API_URL}/evaluation/proctoring/screenshot`, {
+      const token = localStorage.getItem('authToken');
+      if (!token) {
+        console.warn('Screenshot skipped: no auth token');
+        return;
+      }
+      console.log('✓ Screenshot: Auth token found, length:', token.length);
+      
+      const response = await apiClient.post('/evaluation/proctoring/screenshot', {
         interviewType: 'technical',
         imageData,
         capturedAt: new Date().toISOString(),
-      }, {
-        headers: { Authorization: `Bearer ${authToken}` }
       })
       
       if (!response.data.success) {
@@ -652,7 +670,7 @@ export default function TechnicalInterview() {
     } catch (error) {
       console.error('❌ Failed to upload proctoring screenshot:', error.response?.data || error.message)
     }
-  }, [API_URL, authToken])
+  }, [authToken])
 
   const finalizeProctoring = useCallback(async () => {
     if (!authToken) return
@@ -662,11 +680,16 @@ export default function TechnicalInterview() {
         .map((item) => item?.evaluationId)
         .filter(Boolean)
 
-      const res = await axios.post(`${API_URL}/evaluation/proctoring/finalize`, {
+      const token = localStorage.getItem('authToken');
+      if (!token) {
+        console.warn('⚠️ Proctoring finalize: No token found');
+        return;
+      }
+      console.log('✓ Finalize proctoring: Auth token found, length:', token.length);
+      
+      const res = await apiClient.post('/evaluation/proctoring/finalize', {
         interviewType: 'technical',
         evaluationIds,
-      }, {
-        headers: { Authorization: `Bearer ${authToken}` }
       })
 
       console.log('✅ Proctoring finalized, response:', res.data)
@@ -678,7 +701,7 @@ export default function TechnicalInterview() {
     } catch (error) {
       console.error('❌ Failed to finalize proctoring:', error.response?.data || error.message)
     }
-  }, [API_URL, authToken, evaluationStatuses])
+  }, [authToken, evaluationStatuses])
 
   useEffect(() => {
     if (!authToken) return
@@ -745,12 +768,16 @@ export default function TechnicalInterview() {
 
     setIsSubmittingAnswer(true)
     try {
-      const res = await axios.post(`${API_URL}/evaluation/submit-answer`, {
+      const token = localStorage.getItem('authToken');
+      if (!token) { alert('⚠️ Authentication required. Please log in again.'); return }
+      console.log('✓ Submit answer: Auth token found, length:', token.length);
+      
+      const res = await apiClient.post('/evaluation/submit-answer', {
         questionIndex:     currentQuestionIdx,
         question:          shuffledQuestions[currentQuestionIdx],
         transcribedAnswer: transcribedText,
         interviewType:     'technical'
-      }, { headers: { Authorization: `Bearer ${authToken}` } })
+      })
 
       setEvaluationStatuses(p => ({
         ...p,
@@ -970,6 +997,93 @@ export default function TechnicalInterview() {
         {/* CENTER — question + recording */}
         <div className="ctr">
           <div className="qcn">
+            {resumeMessage && (
+              <div style={{
+                padding: '12px 16px',
+                marginBottom: '16px',
+                borderRadius: '8px',
+                fontSize: '14px',
+                fontWeight: '500',
+                backgroundColor: isPersonalized ? '#ffffff' : '#000000',
+                color: isPersonalized ? '#000000' : '#ffffff',
+                border: `2px solid ${isPersonalized ? '#000000' : '#ffffff'}`,
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                boxShadow: isPersonalized ? '0 2px 8px rgba(0,0,0,0.1)' : '0 2px 8px rgba(0,0,0,0.3)'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1 }}>
+                  {isPersonalized ? (
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <polyline points="20 6 9 17 4 12"></polyline>
+                    </svg>
+                  ) : (
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <circle cx="12" cy="12" r="10"></circle>
+                      <line x1="12" y1="8" x2="12" y2="12"></line>
+                      <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                    </svg>
+                  )}
+                  <span>{resumeMessage}</span>
+                </div>
+                <div style={{ display: 'flex', gap: '8px', marginLeft: '16px' }}>
+                  {!isPersonalized && (
+                    <>
+                      <button
+                        onClick={() => navigate('/profile')}
+                        style={{
+                          padding: '6px 12px',
+                          backgroundColor: isPersonalized ? '#000000' : '#ffffff',
+                          color: isPersonalized ? '#ffffff' : '#000000',
+                          border: `1px solid ${isPersonalized ? '#000000' : '#ffffff'}`,
+                          borderRadius: '4px',
+                          fontSize: '12px',
+                          fontWeight: '600',
+                          cursor: 'pointer',
+                          whiteSpace: 'nowrap',
+                          transition: 'all 0.2s'
+                        }}
+                        onMouseEnter={(e) => {
+                          e.target.style.backgroundColor = isPersonalized ? '#333333' : '#f5f5f5';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.target.style.backgroundColor = isPersonalized ? '#000000' : '#ffffff';
+                        }}
+                      >
+                        Update Profile
+                      </button>
+                      <button
+                        onClick={() => setRefreshTrigger(prev => prev + 1)}
+                        disabled={isGenerating}
+                        style={{
+                          padding: '6px 12px',
+                          backgroundColor: isPersonalized ? '#000000' : '#ffffff',
+                          color: isPersonalized ? '#ffffff' : '#000000',
+                          border: `1px solid ${isPersonalized ? '#000000' : '#ffffff'}`,
+                          borderRadius: '4px',
+                          fontSize: '12px',
+                          fontWeight: '600',
+                          cursor: isGenerating ? 'not-allowed' : 'pointer',
+                          whiteSpace: 'nowrap',
+                          opacity: isGenerating ? 0.6 : 1,
+                          transition: 'all 0.2s'
+                        }}
+                        onMouseEnter={(e) => {
+                          if (!isGenerating) {
+                            e.target.style.backgroundColor = isPersonalized ? '#333333' : '#f5f5f5';
+                          }
+                        }}
+                        onMouseLeave={(e) => {
+                          e.target.style.backgroundColor = isPersonalized ? '#000000' : '#ffffff';
+                        }}
+                      >
+                        {isGenerating ? 'Refreshing...' : 'Refresh Questions'}
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
             <div className="qtg">Technical Question</div>
             <div className="qtx">{shuffledQuestions[currentQuestionIdx]}</div>
 

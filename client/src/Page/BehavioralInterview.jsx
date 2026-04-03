@@ -1,7 +1,7 @@
 import React, { useRef, useState, useEffect, useCallback } from "react"
 import { useNavigate } from "react-router-dom"
 import behaviouralQuestions from "../components/question"
-import axios from "axios"
+import apiClient from "../services/authService"
 
 function loadScript(src) {
   return new Promise((resolve, reject) => {
@@ -49,7 +49,6 @@ export default function BehavioralInterview() {
   const [isSubmittingAnswer,  setIsSubmittingAnswer]  = useState(false)
 
   const NUM_Q   = 10
-  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
 
   const startInterviewVideoRecording = useCallback(() => {
     const stream = window.__goalnowScreenStream || screenRef.current?.srcObject
@@ -101,6 +100,13 @@ export default function BehavioralInterview() {
     if (!recorder) return
 
     try {
+      // Debug: Check token before upload
+      const token = localStorage.getItem('authToken');
+      if (!token) {
+        throw new Error('CRITICAL: No authToken in localStorage! User must log in.');
+      }
+      console.log('✓ Video upload: Auth token found, length:', token.length);
+
       if (recorder.state === 'recording') {
         await new Promise((resolve) => {
           recorder.onstop = resolve
@@ -121,14 +127,12 @@ export default function BehavioralInterview() {
         reader.readAsDataURL(blob)
       })
 
-      await axios.post(`${API_URL}/evaluation/proctoring/video`, {
+      await apiClient.post('/evaluation/proctoring/video', {
         interviewType: 'behavioral',
         videoData,
         mimeType: blob.type || 'video/webm',
         startedAt: interviewVideoStartedAtRef.current,
         endedAt: new Date().toISOString(),
-      }, {
-        headers: { Authorization: `Bearer ${authToken}` }
       })
 
       console.log('Interview video uploaded successfully')
@@ -139,7 +143,7 @@ export default function BehavioralInterview() {
       interviewVideoRecorderRef.current = null
       interviewVideoStartedAtRef.current = null
     }
-  }, [API_URL, authToken])
+  }, [])
 
   // ─── Fisher-Yates Shuffle Function ────────────────────────────────────────
   const shuffleArray = (array) => {
@@ -423,7 +427,15 @@ export default function BehavioralInterview() {
   }
 
   const captureAndUploadScreenshot = useCallback(async () => {
-    if (!canvasRef.current || !authToken) return
+    if (!canvasRef.current) return
+
+    // Debug: Check if token exists
+    const token = localStorage.getItem('authToken');
+    if (!token) {
+      console.error('❌ CRITICAL: No authToken in localStorage! User needs to log in.');
+      return;
+    }
+    console.log('✓ Auth token found, length:', token.length);
 
     const screenStream = window.__goalnowScreenStream || screenRef.current?.srcObject
     const screenTrack = screenStream?.getVideoTracks?.()[0]
@@ -570,12 +582,10 @@ export default function BehavioralInterview() {
     console.log(`📸 Screenshot: ${sizeMB}MB`)
 
     try {
-      const response = await axios.post(`${API_URL}/evaluation/proctoring/screenshot`, {
+      const response = await apiClient.post('/evaluation/proctoring/screenshot', {
         interviewType: 'behavioral',
         imageData,
         capturedAt: new Date().toISOString(),
-      }, {
-        headers: { Authorization: `Bearer ${authToken}` }
       })
       
       if (!response.data.success) {
@@ -584,21 +594,26 @@ export default function BehavioralInterview() {
     } catch (error) {
       console.error('❌ Failed to upload proctoring screenshot:', error.response?.data || error.message)
     }
-  }, [API_URL, authToken])
+  }, [])
 
   const finalizeProctoring = useCallback(async () => {
-    if (!authToken) return
     try {
+      // Debug: Check token before finalize
+      const token = localStorage.getItem('authToken');
+      if (!token) {
+        console.warn('⚠️ Proctoring finalize: No token found');
+        return;
+      }
+      console.log('✓ Finalize proctoring: Auth token found, length:', token.length);
+      
       console.log('📤 Finalizing proctoring...')
       const evaluationIds = Object.values(evaluationStatuses)
         .map((item) => item?.evaluationId)
         .filter(Boolean)
 
-      const res = await axios.post(`${API_URL}/evaluation/proctoring/finalize`, {
+      const res = await apiClient.post('/evaluation/proctoring/finalize', {
         interviewType: 'behavioral',
         evaluationIds,
-      }, {
-        headers: { Authorization: `Bearer ${authToken}` }
       })
 
       console.log('✅ Proctoring finalized, response:', res.data)
@@ -610,10 +625,9 @@ export default function BehavioralInterview() {
     } catch (error) {
       console.error('❌ Failed to finalize proctoring:', error.response?.data || error.message)
     }
-  }, [API_URL, authToken, evaluationStatuses])
+  }, [evaluationStatuses])
 
   useEffect(() => {
-    if (!authToken) return
     if (screenshotIntervalRef.current) return
 
     console.log('🔄 Starting screenshot capture (every 30s)')
@@ -631,7 +645,7 @@ export default function BehavioralInterview() {
         screenshotIntervalRef.current = null
       }
     }
-  }, [authToken, captureAndUploadScreenshot])
+  }, [captureAndUploadScreenshot])
 
   // ─── MIC TOGGLE ───────────────────────────────────────────────────────────
   const handleMicToggle = async () => {
@@ -661,16 +675,20 @@ export default function BehavioralInterview() {
   // ─── SUBMIT ANSWER ────────────────────────────────────────────────────────
   const submitCurrentAnswer = async () => {
     if (!transcribedText.trim()) { alert('Please speak an answer first.'); return }
-    if (!authToken)               { alert('Authentication required.');     return }
 
     setIsSubmittingAnswer(true)
     try {
-      const res = await axios.post(`${API_URL}/evaluation/submit-answer`, {
+      // Debug: Check token before submit
+      const token = localStorage.getItem('authToken');
+      if (!token) { alert('⚠️ Authentication required. Please log in again.'); return }
+      console.log('✓ Submit answer: Auth token found, length:', token.length);
+      
+      const res = await apiClient.post('/evaluation/submit-answer', {
         questionIndex:     currentQuestionIdx,
         question:          shuffledQuestions[currentQuestionIdx],
         transcribedAnswer: transcribedText,
         interviewType:     'behavioral'
-      }, { headers: { Authorization: `Bearer ${authToken}` } })
+      })
 
       setEvaluationStatuses(p => ({
         ...p,

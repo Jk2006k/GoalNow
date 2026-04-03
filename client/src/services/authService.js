@@ -15,6 +15,12 @@ apiClient.interceptors.request.use((config) => {
   const token = localStorage.getItem('authToken');
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
+    // Debug proctoring requests
+    if (config.url?.includes('proctoring') || config.url?.includes('evaluation')) {
+      console.log(`📤 API Request:`, config.url, 'Token present:', !!token, 'First 20 chars:', token?.substring(0, 20) + '...');
+    }
+  } else {
+    console.warn('⚠️ WARNING: No auth token found in localStorage for request to:', config.url);
   }
   
   // Log request details for debugging
