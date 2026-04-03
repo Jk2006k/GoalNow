@@ -585,7 +585,10 @@ export default function DSAInterview() {
 
   const moveToNextQuestion = () => {
     if (currentQuestionNumber < allQuestions.length) {
-      // Load next question
+      // Increment question number first
+      const nextQuestionIndex = currentQuestionNumber; // This is the new index (0-based)
+      
+      // Reset all state for new question
       setCurrentQuestionNumber(currentQuestionNumber + 1)
       setCode("")
       setOutput("")
@@ -593,26 +596,31 @@ export default function DSAInterview() {
       setTestResults({})
       setShowNextButton(false)
       setAllTestsPassed(false)
-      loadNewQuestion()
+      
+      // Load the next question from the array
+      loadNewQuestion(nextQuestionIndex)
     } else {
       // All questions completed - navigate to score tracker
       navigateToResults()
     }
   }
 
-  const loadNewQuestion = async () => {
+  const loadNewQuestion = async (questionIndex) => {
     try {
       setQuestionLoading(true)
       setQuestionError("")
 
-      // Load from the allQuestions array based on currentQuestionNumber (1-indexed)
-      const nextQuestion = allQuestions[currentQuestionNumber - 1]
+      // Load from the allQuestions array using the provided index (0-based)
+      const nextQuestion = allQuestions[questionIndex]
 
       if (!nextQuestion) {
         throw new Error("Question not found")
       }
 
       setCurrentQuestion(nextQuestion)
+      // Timer will auto-reset via the useEffect that watches currentQuestion
+      setTimerActive(false) // Stop current timer
+      setTimeRemaining(0) // Reset to 0 temporarily
 
       if (!nextQuestion.testCases || !Array.isArray(nextQuestion.testCases)) {
         throw new Error("Question data error: testCases is not an array")

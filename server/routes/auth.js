@@ -5,7 +5,15 @@ const jwt = require('jsonwebtoken');
 
 // Generate JWT Token
 const generateToken = (userId) => {
-  return jwt.sign({ userId }, process.env.JWT_SECRET, { expiresIn: '30d' });
+  if (!process.env.JWT_SECRET) {
+    console.error('❌ CRITICAL: JWT_SECRET is not defined in .env');
+    throw new Error('JWT_SECRET not configured');
+  }
+  const token = jwt.sign({ userId }, process.env.JWT_SECRET, { expiresIn: '30d' });
+  console.log('✅ Token generated for userId:', userId);
+  console.log('Token first 20 chars:', token.substring(0, 20) + '...');
+  console.log('JWT_SECRET used (first 10 chars):', process.env.JWT_SECRET.substring(0, 10) + '...');
+  return token;
 };
 
 // Google OAuth Callback
@@ -151,6 +159,13 @@ router.get('/profile/:userId', async (req, res) => {
     console.log('User found:', user.firstName, user.email)
     console.log('ProfileImage in DB:', !!user.profileImage)
     console.log('ProfileImage length in DB:', user.profileImage?.length || 0)
+    console.log('Resume in DB:', !!user.resume)
+    console.log('Resume length in DB:', user.resume?.length || 0)
+    console.log('Resume filename in DB:', user.resumeFileName)
+    console.log('Domain in DB:', user.domain)
+    if (user.resume) {
+      console.log('Resume starts with:', user.resume.substring(0, 80));
+    }
     res.json({ success: true, user });
   } catch (error) {
     console.error('Error fetching profile:', error);

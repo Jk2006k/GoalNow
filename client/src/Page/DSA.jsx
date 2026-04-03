@@ -48,7 +48,6 @@ async function enableScreen(){
   screenRef.current.srcObject = stream
   setScreenEnabled(true)
   
-  // Listen for when user clicks Chrome's "Stop Sharing" button
   stream.getTracks().forEach(track => {
     track.addEventListener('ended', () => {
       setScreenEnabled(false)
@@ -58,13 +57,11 @@ async function enableScreen(){
 }
 
 async function enableFull(){
-  // If screen hasn't been enabled yet, request it first before entering fullscreen
   if (!screenEnabled) {
     try {
       await enableScreen()
     } catch (error) {
       console.error('Failed to enable screen share:', error)
-      // Continue anyway - fullscreen will still work
     }
   }
   document.documentElement.requestFullscreen()
@@ -91,9 +88,6 @@ html, body {
   flex-direction: column;
 }
 
-/* Navbar sits at top, fixed height */
-/* The rest is the two-column layout */
-
 .assessment-wrapper{
   display: flex;
   flex: 1;
@@ -107,7 +101,7 @@ html, body {
   background:#f7f8f5;
   border-right:2px solid #e4e4e4;
   padding:40px 35px;
-  overflow: hidden; /* no scroll on left panel */
+  overflow: hidden;
   height: 100%;
 }
 
@@ -138,15 +132,14 @@ font-size:0.9rem;
 
 .right-panel{
   flex: 1;
-  overflow-y: auto;  /* only this panel scrolls */
+  overflow-y: auto;
   height: 100%;
   padding: 50px 70px;
-  /* hide scrollbar across all browsers */
-  scrollbar-width: none;        /* Firefox */
-  -ms-overflow-style: none;     /* IE / Edge */
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 }
 .right-panel::-webkit-scrollbar {
-  display: none;                /* Chrome / Safari / Opera */
+  display: none;
 }
 
 .section-title{
@@ -500,7 +493,7 @@ margin-bottom:10px;
   color:#24344d;
 }
 
-/* Difficulty Selection */
+/* Difficulty Selection — Black & White Theme */
 .difficulty-section{
   margin-top:30px;
   margin-bottom:30px;
@@ -542,81 +535,33 @@ margin-bottom:10px;
 }
 
 .difficulty-option:hover{
-  border-color:#c4c4c4;
-  box-shadow:0 2px 10px rgba(36,52,77,0.08);
+  border-color:#9a9a9a;
+  box-shadow:0 2px 10px rgba(0,0,0,0.08);
 }
 
 .difficulty-option.selected{
   border-color:#24344d;
-  background:#f0f4ff;
-  box-shadow:0 0 0 2px rgba(36,52,77,0.1);
-}
-
-.difficulty-option.easy{
-  border-color:#c8e6c9;
-}
-
-.difficulty-option.easy.selected{
-  border-color:#2e7d32;
-  background:#f1f8f1;
-}
-
-.difficulty-option.medium{
-  border-color:#ffcc80;
-}
-
-.difficulty-option.medium.selected{
-  border-color:#f57f17;
-  background:#fff3e0;
-}
-
-.difficulty-option.hard{
-  border-color:#ef9a9a;
-}
-
-.difficulty-option.hard.selected{
-  border-color:#c62828;
-  background:#ffebee;
-}
-
-.difficulty-option.prep{
-  border-color:#64b5f6;
-}
-
-.difficulty-option.prep.selected{
-  border-color:#1565c0;
-  background:#e3f2fd;
+  background:#f5f5f5;
+  box-shadow:0 0 0 2px rgba(36,52,77,0.12);
 }
 
 .difficulty-badge{
-  width:40px;
-  height:40px;
-  border-radius:8px;
+  width:42px;
+  height:42px;
+  border-radius:10px;
   display:flex;
   align-items:center;
   justify-content:center;
-  font-weight:700;
-  font-size:1.2rem;
+  background:#f0f0f0;
+  color:#4a4a4a;
+  border:1px solid #e0e0e0;
+  transition: all 0.2s ease;
 }
 
-.difficulty-badge.easy{
-  background:#c8e6c9;
-  color:#2e7d32;
-}
-
-.difficulty-badge.medium{
-  background:#ffcc80;
-  color:#f57f17;
-}
-
-.difficulty-badge.hard{
-  background:#ef9a9a;
-  color:#c62828;
-}
-
-.difficulty-badge.prep{
-  background:#64b5f6;
-  color:#1565c0;
+.difficulty-option.selected .difficulty-badge{
+  background:#24344d;
+  color:#fff;
+  border-color:#24344d;
 }
 
 .difficulty-name{
@@ -630,6 +575,24 @@ margin-bottom:10px;
   color:#888;
 }
 
+.difficulty-tag{
+  font-size:0.68rem;
+  font-weight:600;
+  letter-spacing:0.04em;
+  text-transform:uppercase;
+  color:#888;
+  background:#f0f0f0;
+  border:1px solid #e0e0e0;
+  border-radius:4px;
+  padding:2px 7px;
+}
+
+.difficulty-option.selected .difficulty-tag{
+  background:#24344d;
+  color:#fff;
+  border-color:#24344d;
+}
+
 .difficulty-checkmark{
   position:absolute;
   top:8px;
@@ -637,31 +600,13 @@ margin-bottom:10px;
   width:20px;
   height:20px;
   border-radius:50%;
+  background:#24344d;
+  color:white;
   display:flex;
   align-items:center;
   justify-content:center;
-  font-size:0.8rem;
+  font-size:0.75rem;
   font-weight:700;
-}
-
-.difficulty-option.easy.selected .difficulty-checkmark{
-  background:#2e7d32;
-  color:white;
-}
-
-.difficulty-option.medium.selected .difficulty-checkmark{
-  background:#f57f17;
-  color:white;
-}
-
-.difficulty-option.hard.selected .difficulty-checkmark{
-  background:#c62828;
-  color:white;
-}
-
-.difficulty-option.prep.selected .difficulty-checkmark{
-  background:#1565c0;
-  color:white;
 }
 
 `
@@ -727,6 +672,57 @@ const instructions = [
     label: "Write Code Independently",
     sub: "Do not use external tools, AI assistants, or outside help while solving problems."
   }
+]
+
+const difficultyOptions = [
+  {
+    key: "easy",
+    label: "Easy",
+    count: "3 Questions",
+    tag: "Beginner",
+    icon: (
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+        <path d="M2 17l10 5 10-5"/>
+        <path d="M2 12l10 5 10-5"/>
+      </svg>
+    )
+  },
+  {
+    key: "medium",
+    label: "Medium",
+    count: "3 Questions",
+    tag: "Moderate",
+    icon: (
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+      </svg>
+    )
+  },
+  {
+    key: "hard",
+    label: "Hard",
+    count: "3 Questions",
+    tag: "Advanced",
+    icon: (
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+      </svg>
+    )
+  },
+  {
+    key: "prep",
+    label: "Interview Prep",
+    count: "Mixed",
+    tag: "Mixed",
+    icon: (
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="12" cy="12" r="10"/>
+        <line x1="12" y1="8" x2="12" y2="12"/>
+        <line x1="12" y1="16" x2="12.01" y2="16"/>
+      </svg>
+    )
+  },
 ]
 
 return(
@@ -823,47 +819,21 @@ return(
       <div className="difficulty-section">
         <div className="difficulty-title">Select Difficulty Level</div>
         <div className="difficulty-subtitle">Choose the difficulty level for your coding challenge</div>
-        
+
         <div className="difficulty-grid">
-          <div 
-            className={`difficulty-option easy ${difficultySelected === 'easy' ? 'selected' : ''}`}
-            onClick={() => setDifficultySelected('easy')}
-          >
-            {difficultySelected === 'easy' && <div className="difficulty-checkmark">✓</div>}
-            <div className="difficulty-badge easy">📚</div>
-            <div className="difficulty-name">Easy</div>
-            <div className="difficulty-count">3 Questions</div>
-          </div>
-
-          <div 
-            className={`difficulty-option medium ${difficultySelected === 'medium' ? 'selected' : ''}`}
-            onClick={() => setDifficultySelected('medium')}
-          >
-            {difficultySelected === 'medium' && <div className="difficulty-checkmark">✓</div>}
-            <div className="difficulty-badge medium">🎯</div>
-            <div className="difficulty-name">Medium</div>
-            <div className="difficulty-count">3 Questions</div>
-          </div>
-
-          <div 
-            className={`difficulty-option hard ${difficultySelected === 'hard' ? 'selected' : ''}`}
-            onClick={() => setDifficultySelected('hard')}
-          >
-            {difficultySelected === 'hard' && <div className="difficulty-checkmark">✓</div>}
-            <div className="difficulty-badge hard">🔥</div>
-            <div className="difficulty-name">Hard</div>
-            <div className="difficulty-count">3 Questions</div>
-          </div>
-
-          <div 
-            className={`difficulty-option prep ${difficultySelected === 'prep' ? 'selected' : ''}`}
-            onClick={() => setDifficultySelected('prep')}
-          >
-            {difficultySelected === 'prep' && <div className="difficulty-checkmark">✓</div>}
-            <div className="difficulty-badge prep">⚡</div>
-            <div className="difficulty-name">Interview Prep</div>
-            <div className="difficulty-count">Mixed Questions</div>
-          </div>
+          {difficultyOptions.map(({ key, icon, label, count, tag }) => (
+            <div
+              key={key}
+              className={`difficulty-option ${difficultySelected === key ? 'selected' : ''}`}
+              onClick={() => setDifficultySelected(key)}
+            >
+              {difficultySelected === key && <div className="difficulty-checkmark">✓</div>}
+              <div className="difficulty-badge">{icon}</div>
+              <div className="difficulty-name">{label}</div>
+              <div className="difficulty-count">{count}</div>
+              <div className="difficulty-tag">{tag}</div>
+            </div>
+          ))}
         </div>
       </div>
 
@@ -945,7 +915,6 @@ return(
           className="start-btn"
           disabled={!checksCompleted || !fullEnabled || !difficultySelected}
           onClick={async () => {
-            // Release camera/mic so DSA Interview can re-acquire it cleanly
             if (camRef.current?.srcObject) {
               camRef.current.srcObject.getTracks().forEach(t => t.stop())
               camRef.current.srcObject = null
@@ -969,8 +938,6 @@ return(
               }
             }
 
-            // Keep screen-share stream alive and pass it to interview page
-            // to avoid prompting the user again.
             window.__goalnowScreenStream = screenStream
             window.__goalnowDifficulty = difficultySelected
             navigate("/dsa-interview")
