@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react"
-import HomePageNavbar from "../components/HomePageNavbar"
-import { authService } from "../services/authService"
-import { Rocket, Briefcase, Chart, Bulb, Megaphone, Phone, Laptop, ThumbsUp, ImageIcon, D } from "../components/Doodles"
+import HomePageNavbar from "../features/shared/components/HomePageNavbar"
+import { authService } from "../features/shared/services/authService"
+import { Rocket, Briefcase, Chart, Bulb, Megaphone, Phone, Laptop, ThumbsUp, ImageIcon, D } from "../features/shared/components/Doodles"
 
 export default function UpdateProfilePage(){
 const [user, setUser] = useState(null)

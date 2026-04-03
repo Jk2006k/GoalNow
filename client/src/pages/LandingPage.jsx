@@ -1,10 +1,10 @@
 import React, { useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import Navbar from "../components/Navbar";
+import Navbar from "../features/shared/components/Navbar";
 import {
   Rocket, Briefcase, Chart, Envelope, Bulb, Megaphone,
   Phone, Laptop, ThumbsUp, ImageIcon, PersonSilhouette, D
-} from "../components/Doodles";
+} from "../features/shared/components/Doodles";
 
 // ── Animation hook using IntersectionObserver ─────────────────────────────────
 function useScrollReveal(options = {}) {

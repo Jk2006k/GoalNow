@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from "react"
 import { useNavigate } from "react-router-dom"
-import { authService } from "../services/authService"
+import { authService } from "../features/shared/services/authService"
 import axios from "axios"
 
 export default function ScoreTracker() {
