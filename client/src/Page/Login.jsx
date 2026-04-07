@@ -1,4 +1,4 @@
-import React, { useState } from "react"
+import React, { useState, useEffect } from "react"
 import { useNavigate } from "react-router-dom"
 import { GoogleOAuthProvider, GoogleLogin } from "@react-oauth/google"
 import { authService } from "../services/authService"
@@ -7,12 +7,75 @@ import { Rocket, Briefcase, Chart, Bulb, Megaphone, Phone, Laptop, ThumbsUp, Ima
 
 export default function LoginPage() {
   const navigate = useNavigate()
-  const [name, setName] = useState("")
+  
+  // Construct full name from firstName and lastName
+  const getFullName = (user) => {
+    if (!user) return ""
+    const firstName = user.firstName || ""
+    const lastName = user.lastName || ""
+    return `${firstName} ${lastName}`.trim()
+  }
+  
+  const [isLoggedIn, setIsLoggedIn] = useState(() => authService.isLoggedIn())
+  const [currentUser, setCurrentUser] = useState(() => 
+    authService.isLoggedIn() ? authService.getCurrentUser() : null
+  )
+  
+  const [name, setName] = useState(() => {
+    const user = authService.isLoggedIn() ? authService.getCurrentUser() : null
+    if (user) {
+      return getFullName(user)
+    }
+    return ""
+  })
   const [email, setEmail] = useState("")
   const [profile, setProfile] = useState(() => `https://api.dicebear.com/7.x/adventurer/svg?seed=${Math.random()}`)
-  const [step, setStep] = useState(1) // 1: name, 2: email
+  const [step, setStep] = useState(() => {
+    const user = authService.isLoggedIn() ? authService.getCurrentUser() : null
+    if (user && getFullName(user)) {
+      return 2
+    }
+    return 1
+  })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
+
+  // Check auth state on component mount and when page becomes visible
+  useEffect(() => {
+    const checkAuthState = () => {
+      const loggedIn = authService.isLoggedIn()
+      const user = loggedIn ? authService.getCurrentUser() : null
+      
+      setIsLoggedIn(loggedIn)
+      setCurrentUser(user)
+      
+      // Reset form if user is not logged in
+      if (!loggedIn) {
+        setName("")
+        setStep(1)
+        setEmail("")
+        setError("")
+      } else if (user && getFullName(user)) {
+        // If logged in, go to step 2
+        setName(getFullName(user))
+        setStep(2)
+        setEmail("")
+      }
+    }
+
+    // Check on mount
+    checkAuthState()
+
+    // Also check when page becomes visible (returns from another tab)
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        checkAuthState()
+      }
+    }
+
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange)
+  }, [])
 
   // Helper function to log profile state
   const logProfileState = (location) => {
@@ -125,8 +188,27 @@ export default function LoginPage() {
       setLoading(true)
       setError("")
 
-      if (!name.trim() || !email.trim()) {
-        setError("Please fill in all fields")
+      // Better validation - check if fields are truly empty
+      const trimmedName = name.trim()
+      const trimmedEmail = email.trim()
+
+      if (!trimmedName) {
+        setError("Please enter your name")
+        setLoading(false)
+        return
+      }
+
+      if (!trimmedEmail) {
+        setError("Please enter your email")
+        setLoading(false)
+        return
+      }
+
+      // Basic email format check
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+      if (!emailRegex.test(trimmedEmail)) {
+        setError("Please enter a valid email address")
+        setLoading(false)
         return
       }
 
@@ -135,9 +217,9 @@ export default function LoginPage() {
       const currentProfile = logProfileState('BEFORE SENDING TO SERVER');
 
       const userData = {
-        firstName: name,
+        firstName: trimmedName,
         lastName: "",
-        email,
+        email: trimmedEmail,
         profileImage: currentProfile, // Always send - either dicebear URL or uploaded image
       }
 
@@ -369,6 +451,37 @@ export default function LoginPage() {
       opacity: 0.7;
       cursor: not-allowed;
     }
+
+    .login-nav {
+      text-align: center;
+      margin-top: 20px;
+      padding-top: 16px;
+      border-top: 1px solid #f0f0f0;
+      font-size: 0.85rem;
+      color: #666;
+    }
+
+    .login-nav-link {
+      background: none;
+      border: none;
+      color: #111;
+      font-weight: 600;
+      cursor: pointer;
+      text-decoration: underline;
+      font-family: inherit;
+      transition: color 0.2s ease;
+      font-size: 0.85rem;
+      padding: 4px 0;
+    }
+
+    .login-nav-link:hover {
+      color: #555;
+    }
+
+    .login-nav-link:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
   `
 
   const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID
@@ -428,9 +541,9 @@ export default function LoginPage() {
               </label>
             </div>
 
-            {step === 1 ? (
+            {step === 1 && !isLoggedIn ? (
               <>
-                {/* Step 1: Name Input */}
+                {/* Step 1: Name Input - Only show for non-logged-in users */}
                 <div className="form-group">
                   <input
                     type="text"
@@ -457,7 +570,7 @@ export default function LoginPage() {
                 {/* Step 2: Email Signup */}
                 <div className="form-group">
                   <label style={{ fontSize: "0.85rem", fontWeight: "600", display: "block", marginBottom: "6px" }}>
-                    Hello, {name}!
+                    {!isLoggedIn ? `Hello, ${name}!` : "Enter your email to continue"}
                   </label>
                   <input
                     type="email"
@@ -535,6 +648,8 @@ export default function LoginPage() {
                 </button>
               </>
             )}
+
+            {/* Login Navigation removed - logged-in users now start at step 2 directly */}
           </div>
         </div>
       </div>

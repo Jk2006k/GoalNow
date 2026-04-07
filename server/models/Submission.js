@@ -58,6 +58,11 @@ const SubmissionSchema = new mongoose.Schema({
     type: Number, // bytes
     default: null,
   },
+  fullscreenViolation: {
+    type: Boolean,
+    default: false,
+    index: true,
+  },
   createdAt: {
     type: Date,
     default: Date.now,
