@@ -101,7 +101,7 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 // Submit transcribed answer for evaluation
 router.post('/submit-answer', verifyToken, async (req, res) => {
   try {
-    const { questionIndex, question, transcribedAnswer, interviewType } = req.body;
+    const { questionIndex, question, transcribedAnswer, interviewType, fullscreenViolation } = req.body;
 
     if (!transcribedAnswer || !question) {
       return res.status(400).json({ message: 'Missing required fields' });
@@ -115,20 +115,39 @@ router.post('/submit-answer', verifyToken, async (req, res) => {
       question,
       transcribedAnswer,
       submittedAt: new Date(),
+      fullscreenViolation: !!fullscreenViolation,
       proctoringStatus: (interviewType || 'behavioral') === 'behavioral' ? 'pending' : 'completed',
     });
 
+    // If fullscreen violation, immediately set score to 0 (malpractice)
+    if (fullscreenViolation) {
+      evaluation.score = 0;
+      evaluation.feedback = '🚫 MALPRACTICE: Fullscreen was exited during this question. No marks awarded.';
+      evaluation.isEvaluated = true;
+      evaluation.evaluatedAt = new Date();
+      evaluation.redCard = true;
+      evaluation.redCardReasons = evaluation.redCardReasons || [];
+      evaluation.redCardReasons.push('fullscreen-violation');
+      
+      console.log(`⚠️ FULLSCREEN VIOLATION - User ${req.userId}, Question ${questionIndex + 1}, Interview: ${interviewType}`);
+    }
+
     await evaluation.save();
 
-    // Evaluate answer immediately
-    evaluateAnswer(evaluation._id).catch(error => {
-      console.error('Error evaluating answer:', error);
-    });
+    // Evaluate answer immediately (won't override score if fullscreen violation already set it)
+    if (!fullscreenViolation) {
+      evaluateAnswer(evaluation._id).catch(error => {
+        console.error('Error evaluating answer:', error);
+      });
+    }
 
     res.json({
       success: true,
       evaluationId: evaluation._id,
-      message: 'Answer submitted. Evaluation in progress...'
+      message: fullscreenViolation 
+        ? 'Question marked as malpractice due to fullscreen exit. No marks awarded.' 
+        : 'Answer submitted. Evaluation in progress...',
+      fullscreenViolation: !!fullscreenViolation
     });
   } catch (error) {
     console.error('Error submitting answer:', error);

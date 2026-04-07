@@ -1,10 +1,17 @@
 import React, { useState, useEffect, useCallback } from "react"
 import { useNavigate } from "react-router-dom"
+import { authService } from "../services/authService"
 import Editor from "@monaco-editor/react"
 import "./DSAInterview.css"
 
 export default function DSAInterview() {
   const navigate = useNavigate()
+
+  // Get actual user ID from auth service
+  const getUserId = () => {
+    const user = authService.getCurrentUser()
+    return user?._id || localStorage.getItem('userId') || 'anonymous'
+  }
 
   const [currentQuestion, setCurrentQuestion] = useState(null)
   const [questionLoading, setQuestionLoading] = useState(true)
@@ -136,6 +143,9 @@ export default function DSAInterview() {
     setShowNextButton(false)
 
     try {
+      const userId = getUserId()
+      console.log('🔐 DSA Auto-Submit: userId=', userId, 'questionId=', currentQuestion._id)
+      
       const res = await fetch("http://localhost:5000/api/submit", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -143,7 +153,7 @@ export default function DSAInterview() {
           userCode: code,
           questionId: currentQuestion._id,
           languageId: language,
-          userId: "user-123",
+          userId: userId,
           fullscreenViolation: true
         })
       })
@@ -304,6 +314,9 @@ export default function DSAInterview() {
     }
 
     try {
+      const userId = getUserId()
+      console.log('📤 DSA Run Submit: userId=', userId, 'questionId=', currentQuestion._id)
+      
       const res = await fetch("http://localhost:5000/api/submit", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -311,7 +324,7 @@ export default function DSAInterview() {
           userCode: code,
           questionId: currentQuestion._id,
           languageId: language,
-          userId: "user-123"
+          userId: userId
         })
       })
 
@@ -412,7 +425,7 @@ export default function DSAInterview() {
           userCode:   code,
           questionId: currentQuestion._id,
           languageId: language,
-          userId:     localStorage.getItem("userId") || "anonymous"
+          userId:     getUserId()
         })
       })
 
@@ -485,6 +498,9 @@ export default function DSAInterview() {
     setShowNextButton(false)
 
     try {
+      const userId = getUserId()
+      console.log('🎯 DSA Final Submit: userId=', userId, 'questionId=', currentQuestion._id)
+      
       const res = await fetch("http://localhost:5000/api/submit", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -492,7 +508,7 @@ export default function DSAInterview() {
           userCode:   code,
           questionId: currentQuestion._id,
           languageId: language,
-          userId:     "user-123"
+          userId:     userId
         })
       })
 

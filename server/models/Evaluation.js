@@ -75,6 +75,11 @@ const EvaluationSchema = new mongoose.Schema({
     type: [String],
     default: []
   },
+  fullscreenViolation: {
+    type: Boolean,
+    default: false,
+    index: true,
+  },
   evaluationScores: {
     clarity: { type: Number, default: null },
     relevance: { type: Number, default: null },

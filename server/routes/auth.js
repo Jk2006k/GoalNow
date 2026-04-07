@@ -101,20 +101,24 @@ router.post('/email-signup', async (req, res) => {
     let user = await User.findOne({ email });
 
     if (user) {
-      return res.status(400).json({ message: 'User already exists' });
+      // User already exists - log them in and update profile image if provided
+      if (profileImage && !user.profileImage) {
+        user.profileImage = profileImage;
+        await user.save();
+      }
+    } else {
+      // Create new user
+      user = new User({
+        firstName,
+        lastName: lastName || '',
+        email,
+        profileImage: profileImage || null,
+        signupMethod: 'email',
+        verified: false,
+      });
+
+      await user.save();
     }
-
-    // Create new user
-    user = new User({
-      firstName,
-      lastName: lastName || '',
-      email,
-      profileImage: profileImage || null,
-      signupMethod: 'email',
-      verified: false,
-    });
-
-    await user.save();
 
     console.log('=== USER SAVED TO DB ===');
     console.log('- User ID:', user._id);

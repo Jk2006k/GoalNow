@@ -12,6 +12,7 @@ import BehavioralInterview from "./Page/BehavioralInterview"
 import TechnicalInterview from "./Page/TechnicalInterview"
 import EvaluationResults from "./Page/EvaluationResults"
 import ScoreTracker from "./Page/ScoreTracker"
+import CreateOrganizationWorkspace from "./Page/CreateOrganizationWorkspace"
 
 function App() {
   return (
@@ -29,6 +30,7 @@ function App() {
         <Route path="/technical-interview" element={<TechnicalInterview />} />
         <Route path="/evaluation-results" element={<EvaluationResults />} />
         <Route path="/score-tracker" element={<ScoreTracker />} />
+        <Route path="/create-organization" element={<CreateOrganizationWorkspace />} />
       </Routes>
     </BrowserRouter>
   )
