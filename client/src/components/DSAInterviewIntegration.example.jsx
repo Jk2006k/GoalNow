@@ -22,7 +22,7 @@ const DSAInterviewWithEvaluation = ({ questionId }) => {
 
   const fetchQuestion = async () => {
     try {
-      const response = await axios.get(`http://localhost:5000/api/questions/${questionId}`);
+      const response = await axios.get(`https://goalnow.onrender.com/api/questions/${questionId}`);
       setQuestion(response.data);
     } catch (err) {
       console.error('Failed to fetch question:', err);
@@ -103,7 +103,7 @@ const DSAInterviewAdvanced = ({ questionId }) => {
 
   const fetchQuestion = async () => {
     try {
-      const response = await axios.get(`http://localhost:5000/api/questions/${questionId}`);
+      const response = await axios.get(`https://goalnow.onrender.com/api/questions/${questionId}`);
       setQuestion(response.data);
       setCode(response.data.starterCode?.['71'] || '');
     } catch (err) {

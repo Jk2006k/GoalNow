@@ -43,7 +43,7 @@ const { formatRunCodeResponse, formatSubmitResponse } = require("../utils/submis
  */
 router.post("/submit", async (req, res) => {
   try {
-    const { userCode, questionId, languageId, userId } = req.body;
+    const { userCode, questionId, languageId, userId, fullscreenViolation } = req.body;
 
     // Validate required fields
     if (!userCode || !questionId || !languageId) {
@@ -68,6 +68,8 @@ router.post("/submit", async (req, res) => {
     console.log("Question ID:", questionId);
     console.log("Language ID:", languageId);
     console.log("User ID:", userId || "anonymous");
+    console.log("Fullscreen Violation:", fullscreenViolation || false);
+    console.log("User code length:", userCode?.length || 0, "characters");
 
     // Check if question exists
     const question = await Question.findById(questionId);
@@ -101,10 +103,18 @@ router.post("/submit", async (req, res) => {
         totalTests: evaluationResult.publicTests.total + evaluationResult.hiddenTests.total,
         results: evaluationResult.publicTests.results,
         accepted: evaluationResult.success,
+        fullscreenViolation: !!fullscreenViolation,
       });
 
-      await submission.save();
+      const savedSubmission = await submission.save();
       console.log("✅ Submission saved to database");
+      console.log("   ID:", savedSubmission._id);
+      console.log("   User:", savedSubmission.userId);
+      console.log("   Question:", question.title);
+      console.log("   Score:", `${savedSubmission.testsPassed}/${savedSubmission.totalTests}`);
+      if (fullscreenViolation) {
+        console.log("   ⚠️ Flagged as fullscreen violation");
+      }
     } catch (dbError) {
       console.error("⚠️ Failed to save submission:", dbError.message);
       // Continue even if DB save fails
@@ -465,10 +475,11 @@ router.get("/submissions/:submissionId", async (req, res) => {
 router.get("/submissions/user/:userId", async (req, res) => {
   try {
     const { userId } = req.params;
-    const { limit = 10, skip = 0 } = req.query;
+    const { limit = 10, skip = 0, type = 'dsa' } = req.query;
+    
+    console.log(`📋 DSA Submissions: user=${userId}, limit=${limit}, skip=${skip}`);
 
     const submissions = await Submission.find({ userId })
-      .populate("questionId", "title difficulty")
       .sort({ createdAt: -1 })
       .limit(parseInt(limit))
       .skip(parseInt(skip))
@@ -476,11 +487,40 @@ router.get("/submissions/user/:userId", async (req, res) => {
 
     const total = await Submission.countDocuments({ userId });
 
+    // Enrich submissions with question data from separate connection
+    const enrichedSubmissions = await Promise.all(
+      submissions.map(async (submission) => {
+        try {
+          const question = await Question.findById(submission.questionId);
+          return {
+            ...submission,
+            questionId: {
+              _id: submission.questionId,
+              title: question?.title || "Unknown Question",
+              difficulty: question?.difficulty || "unknown"
+            }
+          };
+        } catch (error) {
+          console.warn(`⚠️ Could not fetch question ${submission.questionId}:`, error.message);
+          return {
+            ...submission,
+            questionId: {
+              _id: submission.questionId,
+              title: "Unknown Question",
+              difficulty: "unknown"
+            }
+          };
+        }
+      })
+    );
+
+    console.log(`✅ Found ${enrichedSubmissions.length}/${total} DSA submissions for user ${userId}`);
+
     res.json({
       success: true,
-      count: submissions.length,
+      count: enrichedSubmissions.length,
       total,
-      data: submissions,
+      data: enrichedSubmissions,
     });
   } catch (error) {
     console.error("Error fetching user submissions:", error);

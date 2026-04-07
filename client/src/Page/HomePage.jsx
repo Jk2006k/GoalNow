@@ -1,11 +1,26 @@
 import React, { useEffect, useState, useRef } from "react"
 import HomePageNavbar from "../components/HomePageNavbar"
+import MobileWall from "./MobileWall"
 import { authService } from "../services/authService"
 import { Rocket, Briefcase, Chart, Bulb, Megaphone, Phone, Laptop, ThumbsUp, ImageIcon, D } from "../components/Doodles"
 import { useNavigate } from "react-router-dom"
 
+// ── Mobile detector ───────────────────────────────────────────────────────────
+function useIsMobile(breakpoint = 768) {
+  const [isMobile, setIsMobile] = useState(() =>
+    typeof window !== "undefined" ? window.innerWidth <= breakpoint : false
+  )
+  useEffect(() => {
+    const handler = () => setIsMobile(window.innerWidth <= breakpoint)
+    window.addEventListener("resize", handler)
+    return () => window.removeEventListener("resize", handler)
+  }, [breakpoint])
+  return isMobile
+}
+
 export default function HomePage() {
   const navigate = useNavigate()
+  const isMobile = useIsMobile()
   const [user, setUser] = useState(null)
   const [progress, setProgress] = useState(0)
 
@@ -274,7 +289,9 @@ export default function HomePage() {
 }
 `
 
-  return (
+  return isMobile ? (
+    <MobileWall />
+  ) : (
     <div style={{
       fontFamily: "'Plus Jakarta Sans', sans-serif",
       background: "#ffffff",
@@ -406,7 +423,7 @@ export default function HomePage() {
             can practice these curated questions and prepare for interviews that
             closely match the expectations of their target companies.
           </p>
-          <button className="org-btn">Create Organization Workspace →</button>
+          <button className="org-btn" onClick={() => navigate("/create-organization")}>Create Organization Workspace →</button>
         </div>
       </div>
 

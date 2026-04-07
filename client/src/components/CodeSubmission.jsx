@@ -10,6 +10,7 @@
 
 import React, { useState } from 'react';
 import axios from 'axios';
+import { authService } from '../services/authService';
 
 // Language options for the code editor
 const LANGUAGES = {
@@ -19,7 +20,7 @@ const LANGUAGES = {
   '54': { name: 'C++', ext: 'cpp' }
 };
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+const API_URL = import.meta.env.VITE_API_URL?.replace('/api', '') || 'https://goalnow.onrender.com';
 
 const CodeSubmission = ({ questionId, starterCode = '', functionName = 'solution' }) => {
   const [code, setCode] = useState(starterCode);
@@ -28,6 +29,12 @@ const CodeSubmission = ({ questionId, starterCode = '', functionName = 'solution
   const [results, setResults] = useState(null);
   const [error, setError] = useState(null);
   const [actionType, setActionType] = useState(null); // 'run' or 'submit'
+
+  // Get actual user ID from auth service
+  const getUserId = () => {
+    const user = authService.getCurrentUser();
+    return user?._id || localStorage.getItem('userId') || 'anonymous';
+  }
 
   /**
    * Run code against VISIBLE test cases only
@@ -51,7 +58,7 @@ const CodeSubmission = ({ questionId, starterCode = '', functionName = 'solution
         userCode: code,
         questionId: questionId,
         languageId: selectedLanguage,
-        userId: localStorage.getItem('userId') || 'anonymous'
+        userId: getUserId()
       });
 
       console.log('✅ Run complete:', response.data);
@@ -90,7 +97,7 @@ const CodeSubmission = ({ questionId, starterCode = '', functionName = 'solution
         userCode: code,
         questionId: questionId,
         languageId: selectedLanguage,
-        userId: localStorage.getItem('userId') || 'anonymous'
+        userId: getUserId()
       });
 
       console.log('✅ Submission complete:', response.data);

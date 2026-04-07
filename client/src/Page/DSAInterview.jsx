@@ -1,10 +1,17 @@
 import React, { useState, useEffect, useCallback } from "react"
 import { useNavigate } from "react-router-dom"
+import { authService } from "../services/authService"
 import Editor from "@monaco-editor/react"
 import "./DSAInterview.css"
 
 export default function DSAInterview() {
   const navigate = useNavigate()
+
+  // Get actual user ID from auth service
+  const getUserId = () => {
+    const user = authService.getCurrentUser()
+    return user?._id || localStorage.getItem('userId') || 'anonymous'
+  }
 
   const [currentQuestion, setCurrentQuestion] = useState(null)
   const [questionLoading, setQuestionLoading] = useState(true)
@@ -36,18 +43,16 @@ export default function DSAInterview() {
         setQuestionLoading(true)
         setQuestionError("")
 
-        // Get difficulty from window variable set by DSA.jsx
         const selectedDifficulty = window.__goalnowDifficulty || 'easy'
         setDifficulty(selectedDifficulty)
 
         let questionsToLoad = []
 
         if (selectedDifficulty === 'prep') {
-          // For interview prep, fetch questions from all difficulties and shuffle
           try {
-            const easyRes = await fetch("http://localhost:5000/api/questions/all?count=2&difficulty=easy")
-            const mediumRes = await fetch("http://localhost:5000/api/questions/all?count=2&difficulty=medium")
-            const hardRes = await fetch("http://localhost:5000/api/questions/all?count=1&difficulty=hard")
+            const easyRes = await fetch("https://goalnow.onrender.com/api/questions/all?count=2&difficulty=easy")
+            const mediumRes = await fetch("https://goalnow.onrender.com/api/questions/all?count=2&difficulty=medium")
+            const hardRes = await fetch("https://goalnow.onrender.com/api/questions/all?count=1&difficulty=hard")
 
             const easyData = easyRes.ok ? await easyRes.json() : { data: [] }
             const mediumData = mediumRes.ok ? await mediumRes.json() : { data: [] }
@@ -59,7 +64,6 @@ export default function DSAInterview() {
               ...(hardData.data || [])
             ]
 
-            // Shuffle the questions using Fisher-Yates algorithm
             for (let i = questionsToLoad.length - 1; i > 0; i--) {
               const j = Math.floor(Math.random() * (i + 1));
               [questionsToLoad[i], questionsToLoad[j]] = [questionsToLoad[j], questionsToLoad[i]]
@@ -70,7 +74,7 @@ export default function DSAInterview() {
           }
         } else {
           // For specific difficulty, fetch 5 questions of that difficulty
-          const response = await fetch(`http://localhost:5000/api/questions/all?count=5&difficulty=${selectedDifficulty}`)
+          const response = await fetch(`https://goalnow.onrender.com/api/questions/all?count=5&difficulty=${selectedDifficulty}`)
 
           if (!response.ok) {
             throw new Error(`Failed to fetch questions: ${response.status}`)
@@ -136,14 +140,17 @@ export default function DSAInterview() {
     setShowNextButton(false)
 
     try {
-      const res = await fetch("http://localhost:5000/api/submit", {
+      const userId = getUserId()
+      console.log('🔐 DSA Auto-Submit: userId=', userId, 'questionId=', currentQuestion._id)
+      
+      const res = await fetch("https://goalnow.onrender.com/api/submit", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           userCode: code,
           questionId: currentQuestion._id,
           languageId: language,
-          userId: "user-123",
+          userId: userId,
           fullscreenViolation: true
         })
       })
@@ -184,7 +191,6 @@ export default function DSAInterview() {
 
       setOutput(`⚠️ FULLSCREEN EXITED - Auto-submitted\n\n${passedCount}/${totalCount} tests passed (${acceptance})`)
 
-      // Store this question's result with violation flag
       const sessionData = {
         questionNumber: currentQuestionNumber,
         questionId: currentQuestion._id,
@@ -202,7 +208,6 @@ export default function DSAInterview() {
       const updatedSessions = [...testSessions, sessionData]
       setTestSessions(updatedSessions)
 
-      // Auto navigate to results
       setTimeout(() => {
         navigateToResults(updatedSessions)
       }, 2000)
@@ -212,33 +217,27 @@ export default function DSAInterview() {
       setError(`Network Error: ${err.message}`)
       setIsRunning(false)
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [code, currentQuestion, currentQuestionNumber, language, testSessions])
 
-  // Fullscreen and ESC key detection
   useEffect(() => {
     let hasSubmittedDueToViolation = false
 
     const handleFullscreenChange = () => {
       const isCurrentlyFullscreen = !!document.fullscreenElement
       
-      // If fullscreen was exited and we haven't already submitted, trigger auto-submit
       if (!isCurrentlyFullscreen && !hasSubmittedDueToViolation) {
         hasSubmittedDueToViolation = true
         setFullscreenViolation(true)
-        // Auto-submit with flag immediately
         autoSubmitWithViolation()
       }
     }
 
     const handleKeyDown = (e) => {
-      // ESC key is keyCode 27
       if (e.key === "Escape" || e.keyCode === 27) {
         e.preventDefault()
         if (!hasSubmittedDueToViolation) {
           hasSubmittedDueToViolation = true
           setFullscreenViolation(true)
-          // Auto-submit with flag immediately
           autoSubmitWithViolation()
         }
       }
@@ -260,7 +259,6 @@ export default function DSAInterview() {
     "54": { name: "C++",        ext: ".cpp",  monacoLang: "cpp"        }
   }
 
-  // Timer effect - runs countdown and auto-submits when time is up
   useEffect(() => {
     let timerInterval
 
@@ -269,10 +267,8 @@ export default function DSAInterview() {
         setTimeRemaining(prev => {
           const newTime = prev - 1
           
-          // Show warning at last 10 seconds
           if (newTime === 10 && !showTimerWarning) {
             setShowTimerWarning(true)
-            // Auto-hide warning after 3 seconds
             setTimeout(() => setShowTimerWarning(false), 3000)
           }
           
@@ -280,7 +276,6 @@ export default function DSAInterview() {
         })
       }, 1000)
     } else if (timerActive && timeRemaining === 0) {
-      // Time's up - auto-submit
       setTimerActive(false)
       handleTimeExpired()
     }
@@ -290,13 +285,11 @@ export default function DSAInterview() {
     }
   }, [timerActive, timeRemaining, showTimerWarning])
 
-  // Auto-submit when timer expires
   const handleTimeExpired = async () => {
     setIsRunning(true)
     setOutput("Time expired! Auto-submitting your solution...")
     
-    // Auto submit without waiting for user input
-    if (!code.trim()) {
+=    if (!code.trim()) {
       setError("No code to submit")
       setIsRunning(false)
       setTimeout(() => moveToNextQuestion(), 2000)
@@ -304,14 +297,17 @@ export default function DSAInterview() {
     }
 
     try {
-      const res = await fetch("http://localhost:5000/api/submit", {
+      const userId = getUserId()
+      console.log('📤 DSA Run Submit: userId=', userId, 'questionId=', currentQuestion._id)
+      
+      const res = await fetch("https://goalnow.onrender.com/api/submit", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           userCode: code,
           questionId: currentQuestion._id,
           languageId: language,
-          userId: "user-123"
+          userId: userId
         })
       })
 
@@ -364,7 +360,6 @@ export default function DSAInterview() {
     setTestResults({})
   }, [language, currentQuestion])
 
-  // Initialize timer when question changes
   useEffect(() => {
     if (currentQuestion && currentQuestion.difficulty) {
       const timeLimit = getTimeLimitByDifficulty(currentQuestion.difficulty)
@@ -374,7 +369,6 @@ export default function DSAInterview() {
     }
   }, [currentQuestion])
 
-  // Get time limit based on difficulty (in seconds)
   const getTimeLimitByDifficulty = (diff) => {
     const limits = {
       easy: 20 * 60,    // 20 minutes
@@ -405,14 +399,14 @@ export default function DSAInterview() {
     setTestResults({})
 
     try {
-      const res = await fetch("http://localhost:5000/api/run-all", {
+      const res = await fetch("https://goalnow.onrender.com/api/run-all", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           userCode:   code,
           questionId: currentQuestion._id,
           languageId: language,
-          userId:     localStorage.getItem("userId") || "anonymous"
+          userId:     getUserId()
         })
       })
 
@@ -485,14 +479,17 @@ export default function DSAInterview() {
     setShowNextButton(false)
 
     try {
-      const res = await fetch("http://localhost:5000/api/submit", {
+      const userId = getUserId()
+      console.log('🎯 DSA Final Submit: userId=', userId, 'questionId=', currentQuestion._id)
+      
+      const res = await fetch("https://goalnow.onrender.com/api/submit", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           userCode:   code,
           questionId: currentQuestion._id,
           languageId: language,
-          userId:     "user-123"
+          userId:     userId
         })
       })
 

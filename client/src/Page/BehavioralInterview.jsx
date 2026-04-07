@@ -47,6 +47,7 @@ export default function BehavioralInterview() {
   const [mpReady,             setMpReady]             = useState(false)
   const [shuffledQuestions,   setShuffledQuestions]   = useState([])
   const [isSubmittingAnswer,  setIsSubmittingAnswer]  = useState(false)
+  const [fullscreenViolations, setFullscreenViolations] = useState(new Set())
 
   const NUM_Q   = 10
 
@@ -277,27 +278,53 @@ export default function BehavioralInterview() {
 
   // ─── SPEECH RECOGNITION ───────────────────────────────────────────────────
   useEffect(() => {
-    const SR = window.SpeechRecognition || window.webkitSpeechRecognition
+    const SR = window.webkitSpeechRecognition || window.SpeechRecognition
     if (SR) {
-      recognitionRef.current = new SR()
-      recognitionRef.current.continuous     = true
-      recognitionRef.current.interimResults = true
-      recognitionRef.current.language       = 'en-US'
-      recognitionRef.current.onresult = (e) => {
-        for (let i = e.resultIndex; i < e.results.length; i++)
-          if (e.results[i].isFinal)
-            setTranscribedText(p => p + ' ' + e.results[i][0].transcript)
-      }
-      recognitionRef.current.onerror = (e) => {
-        if (e.error === 'no-speech') return;
-        console.error('SR error:', e.error);
-      }
-      recognitionRef.current.onend = () => {
-        // Try to automatically restart recognition if the mic should still be active
-        if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
-          try { recognitionRef.current?.start() } catch (err) {}
+      try {
+        recognitionRef.current = new SR()
+        recognitionRef.current.continuous     = true
+        recognitionRef.current.interimResults = true
+        recognitionRef.current.language       = 'en-US'
+        
+        // Chrome-specific: suppress errors but handle important ones
+        recognitionRef.current.onstart = () => {
+          console.log('✅ Speech recognition started');
         }
+        
+        recognitionRef.current.onresult = (e) => {
+          for (let i = e.resultIndex; i < e.results.length; i++)
+            if (e.results[i].isFinal)
+              setTranscribedText(p => p + ' ' + e.results[i][0].transcript)
+        }
+        
+        recognitionRef.current.onerror = (e) => {
+          // Ignore expected errors
+          if (e.error === 'no-speech') return;
+          if (e.error === 'network') {
+            console.warn('⚠️ Chrome Speech API network error - retrying...');
+            // Chrome will retry automatically
+            return;
+          }
+          console.error('SR error:', e.error);
+        }
+        
+        recognitionRef.current.onend = () => {
+          // Try to automatically restart recognition if the mic should still be active
+          if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+            try { 
+              recognitionRef.current?.start() 
+            } catch (err) {
+              console.warn('Failed to restart SR:', err.message);
+            }
+          }
+        }
+        
+        console.log('✅ Speech Recognition initialized successfully');
+      } catch (err) {
+        console.error('❌ Failed to initialize Speech Recognition:', err);
       }
+    } else {
+      console.error('❌ Speech recognition not supported - try updating your browser');
     }
     setAuthToken(localStorage.getItem('authToken'))
   }, [])
@@ -375,6 +402,9 @@ export default function BehavioralInterview() {
 
       // Enforce exit only after fullscreen has been entered at least once.
       if (fullscreenEstablishedRef.current) {
+        // Mark current question as having fullscreen violation
+        setFullscreenViolations(prev => new Set(prev).add(currentQuestionIdx))
+        console.warn('⚠️ FULLSCREEN EXITED - Question', currentQuestionIdx + 1, 'marked as malpractice')
         submitHandlerRef.current?.()
       }
     }
@@ -658,9 +688,19 @@ export default function BehavioralInterview() {
         setIsRecording(true)
         setIsMicActive(true)
         setTranscribedText("")
-        recognitionRef.current?.start()
+        
+        // Chrome fix: add delay before starting recognition to ensure mic is ready
+        setTimeout(() => {
+          try {
+            recognitionRef.current?.start()
+            console.log('✅ Speech recognition started');
+          } catch (err) {
+            console.error('Failed to start speech recognition:', err.message);
+          }
+        }, 100);
       } catch(e) {
         console.error('Mic error:', e)
+        alert('Microphone access denied. Please check browser permissions.')
       }
     } else if (isMicActive) {
       try { mediaRecorderRef.current?.stop() } catch(e) {}
@@ -683,11 +723,14 @@ export default function BehavioralInterview() {
       if (!token) { alert('⚠️ Authentication required. Please log in again.'); return }
       console.log('✓ Submit answer: Auth token found, length:', token.length);
       
+      const hasViolation = fullscreenViolations.has(currentQuestionIdx)
+      
       const res = await apiClient.post('/evaluation/submit-answer', {
         questionIndex:     currentQuestionIdx,
         question:          shuffledQuestions[currentQuestionIdx],
         transcribedAnswer: transcribedText,
-        interviewType:     'behavioral'
+        interviewType:     'behavioral',
+        fullscreenViolation: hasViolation
       })
 
       setEvaluationStatuses(p => ({
@@ -695,6 +738,9 @@ export default function BehavioralInterview() {
         [currentQuestionIdx]: { evaluationId: res.data.evaluationId, status: 'pending' }
       }))
       setAnsweredQuestions(p => new Set(p).add(currentQuestionIdx))
+      if (hasViolation) {
+        console.warn('⚠️ Question', currentQuestionIdx + 1, 'submitted with fullscreen violation flag')
+      }
       return true
     } catch(e) {
       alert('Error: ' + (e.response?.data?.message || e.message))
@@ -777,12 +823,15 @@ export default function BehavioralInterview() {
 .pfll{position:absolute;bottom:0;left:0;width:100%;background:#111;border-radius:2px;transition:height 1s linear;}
 
 .ctr{flex:1;display:flex;align-items:center;justify-content:center;padding:48px 64px;background:#f5f5f5;}
-.qcn{display:flex;flex-direction:column;align-items:center;text-align:center;max-width:680px;width:100%;}
+.qcn{display:flex;flex-direction:column;align-items:center;text-align:center;max-width:850px;width:100%;}
 .qtg{font-size:.72rem;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:#999;margin-bottom:24px;display:flex;align-items:center;gap:8px;}
 .qtg::before,.qtg::after{content:'';display:block;width:28px;height:1px;background:#ccc;}
 .qtx{font-size:1.65rem;font-weight:600;line-height:1.55;color:#111;margin-bottom:52px;letter-spacing:-.01em;}
-.tdv{background:#f0f0f0;border:2px solid #e0e0e0;border-radius:10px;padding:20px;margin-bottom:28px;min-height:80px;font-size:.95rem;line-height:1.6;color:#333;text-align:left;max-height:120px;overflow-y:auto;width:100%;}
+.tdv{background:#f0f0f0;border:2px solid #e0e0e0;border-radius:10px;padding:24px;margin-bottom:28px;min-height:160px;font-size:1rem;line-height:1.7;color:#333;text-align:left;max-height:280px;overflow-y:auto;width:100%;}
 .tdv.empty{color:#ccc;font-style:italic;}
+.tdv textarea{font-family:'Sora',sans-serif;}
+.tdv textarea:focus{outline:none;}
+.tdv textarea::placeholder{color:#999;}
 .mca{display:flex;flex-direction:column;align-items:center;gap:24px;}
 .mrng{width:96px;height:96px;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .25s;}
 .mrng.idle{background:#111;}
@@ -897,8 +946,42 @@ export default function BehavioralInterview() {
             <div className="qtg">Behavioural Question</div>
             <div className="qtx">{shuffledQuestions[currentQuestionIdx]}</div>
 
-            <div className={`tdv ${!transcribedText ? 'empty' : ''}`}>
-              {transcribedText || 'Your speech will appear here...'}
+            <div>
+              {hasStopped && (
+                <div style={{
+                  fontSize: '.85rem',
+                  fontWeight: '500',
+                  color: '#666',
+                  marginBottom: '8px',
+                  letterSpacing: '.05em'
+                }}>
+                  ✎ You can correct the recognized text below:
+                </div>
+              )}
+              <div className={`tdv ${!transcribedText ? 'empty' : ''}`}>
+                {!hasStopped ? (
+                  transcribedText || 'Your speech will appear here...'
+                ) : (
+                  <textarea
+                    value={transcribedText}
+                    onChange={(e) => setTranscribedText(e.target.value)}
+                    style={{
+                      width: '100%',
+                      height: '100%',
+                      fontFamily: 'inherit',
+                      fontSize: 'inherit',
+                      lineHeight: 'inherit',
+                      color: 'inherit',
+                      border: 'none',
+                      outline: 'none',
+                      padding: '0',
+                      backgroundColor: 'transparent',
+                      resize: 'none',
+                      minHeight: '80px'
+                    }}
+                  />
+                )}
+              </div>
             </div>
 
             <div className="mca">
