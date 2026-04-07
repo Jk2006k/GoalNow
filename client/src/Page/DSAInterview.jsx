@@ -289,7 +289,7 @@ export default function DSAInterview() {
     setIsRunning(true)
     setOutput("Time expired! Auto-submitting your solution...")
     
-=    if (!code.trim()) {
+    if (!code.trim()) {
       setError("No code to submit")
       setIsRunning(false)
       setTimeout(() => moveToNextQuestion(), 2000)
