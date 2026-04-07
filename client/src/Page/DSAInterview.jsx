@@ -52,9 +52,9 @@ export default function DSAInterview() {
         if (selectedDifficulty === 'prep') {
           // For interview prep, fetch questions from all difficulties and shuffle
           try {
-            const easyRes = await fetch("http://localhost:5000/api/questions/all?count=2&difficulty=easy")
-            const mediumRes = await fetch("http://localhost:5000/api/questions/all?count=2&difficulty=medium")
-            const hardRes = await fetch("http://localhost:5000/api/questions/all?count=1&difficulty=hard")
+            const easyRes = await fetch("https://goalnow.onrender.com/api/questions/all?count=2&difficulty=easy")
+            const mediumRes = await fetch("https://goalnow.onrender.com/api/questions/all?count=2&difficulty=medium")
+            const hardRes = await fetch("https://goalnow.onrender.com/api/questions/all?count=1&difficulty=hard")
 
             const easyData = easyRes.ok ? await easyRes.json() : { data: [] }
             const mediumData = mediumRes.ok ? await mediumRes.json() : { data: [] }
@@ -77,7 +77,7 @@ export default function DSAInterview() {
           }
         } else {
           // For specific difficulty, fetch 5 questions of that difficulty
-          const response = await fetch(`http://localhost:5000/api/questions/all?count=5&difficulty=${selectedDifficulty}`)
+          const response = await fetch(`https://goalnow.onrender.com/api/questions/all?count=5&difficulty=${selectedDifficulty}`)
 
           if (!response.ok) {
             throw new Error(`Failed to fetch questions: ${response.status}`)
@@ -146,7 +146,7 @@ export default function DSAInterview() {
       const userId = getUserId()
       console.log('🔐 DSA Auto-Submit: userId=', userId, 'questionId=', currentQuestion._id)
       
-      const res = await fetch("http://localhost:5000/api/submit", {
+      const res = await fetch("https://goalnow.onrender.com/api/submit", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -317,7 +317,7 @@ export default function DSAInterview() {
       const userId = getUserId()
       console.log('📤 DSA Run Submit: userId=', userId, 'questionId=', currentQuestion._id)
       
-      const res = await fetch("http://localhost:5000/api/submit", {
+      const res = await fetch("https://goalnow.onrender.com/api/submit", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -418,7 +418,7 @@ export default function DSAInterview() {
     setTestResults({})
 
     try {
-      const res = await fetch("http://localhost:5000/api/run-all", {
+      const res = await fetch("https://goalnow.onrender.com/api/run-all", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -501,7 +501,7 @@ export default function DSAInterview() {
       const userId = getUserId()
       console.log('🎯 DSA Final Submit: userId=', userId, 'questionId=', currentQuestion._id)
       
-      const res = await fetch("http://localhost:5000/api/submit", {
+      const res = await fetch("https://goalnow.onrender.com/api/submit", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

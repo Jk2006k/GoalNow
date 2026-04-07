@@ -20,7 +20,7 @@ const LANGUAGES = {
   '54': { name: 'C++', ext: 'cpp' }
 };
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+const API_URL = import.meta.env.VITE_API_URL?.replace('/api', '') || 'https://goalnow.onrender.com';
 
 const CodeSubmission = ({ questionId, starterCode = '', functionName = 'solution' }) => {
   const [code, setCode] = useState(starterCode);

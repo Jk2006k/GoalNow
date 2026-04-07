@@ -16,7 +16,7 @@ export default function ScoreTracker() {
   const [refreshTrigger, setRefreshTrigger] = useState(0)
   const [lastRefreshTime, setLastRefreshTime] = useState(null)
 
-  const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
+  const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://goalnow.onrender.com/api'
 
   const getScoreColor = (score) => {
     if (score >= 80) return '#111'
