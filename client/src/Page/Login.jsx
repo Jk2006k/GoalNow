@@ -1,6 +1,5 @@
-import React, { useState, useEffect, useRef } from "react"
+import React, { useState, useEffect, useRef, useCallback } from "react"
 import { useNavigate } from "react-router-dom"
-import { GoogleOAuthProvider, GoogleLogin } from "@react-oauth/google"
 import { authService } from "../services/authService"
 import Navbar from "../components/Navbar"
 import { Rocket, Briefcase, Chart, Bulb, Megaphone, Phone, Laptop, ThumbsUp, ImageIcon, D } from "../components/Doodles"
@@ -17,7 +16,6 @@ export default function LoginPage() {
   const [profile, setProfile] = useState(() => `https://api.dicebear.com/7.x/adventurer/svg?seed=${Math.random()}`)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
-  const [googleButtonRendered, setGoogleButtonRendered] = useState(false)
 
   // Helper function to log profile state
   const logProfileState = (location) => {
@@ -29,7 +27,15 @@ export default function LoginPage() {
   }
 
   // Google Sign-In Handler
-  const handleGoogleSuccess = async (credentialResponse) => {
+  const handleGoogleSuccess = useCallback(async (credentialResponse) => {
+    const logProfileState = (location) => {
+      console.log(`📸 [${location}] Profile state:`);
+      console.log('- Length:', profile?.length);
+      console.log('- Is base64:', profile?.startsWith('data:image') ? 'YES ✅' : 'NO (URL)');
+      console.log('- First 80 chars:', profile?.substring(0, 80));
+      return profile;
+    }
+
     try {
       setLoading(true)
       setError("")
@@ -62,11 +68,7 @@ export default function LoginPage() {
     } finally {
       setLoading(false)
     }
-  }
-
-  const handleGoogleError = () => {
-    setError("Failed to sign in with Google")
-  }
+  }, [profile, navigate])
 
   // Check auth state on component mount and when page becomes visible
   useEffect(() => {
@@ -112,13 +114,16 @@ export default function LoginPage() {
 
   // Initialize Google Sign-In with manual button rendering
   useEffect(() => {
-    const timer = setTimeout(() => {
-      if (!isLoggedIn && window.google?.accounts?.id && googleButtonRef.current) {
+    const initializeGoogleButton = () => {
+      if (!isLoggedIn && googleButtonRef.current) {
+        if (!window.google?.accounts?.id) {
+          console.warn('Google Sign-In script not yet loaded. Retrying...');
+          setTimeout(initializeGoogleButton, 500);
+          return;
+        }
+
         try {
-          console.log('🔍 Initializing Google Sign-In button...');
-          console.log('- isLoggedIn:', isLoggedIn);
-          console.log('- googleButtonRef.current exists:', !!googleButtonRef.current);
-          console.log('- window.google.accounts.id exists:', !!window.google?.accounts?.id);
+          console.log('🔄 Initializing Google Sign-In...');
           
           // Disable automatic selection and prompts
           window.google.accounts.id.disableAutoSelect();
@@ -142,21 +147,13 @@ export default function LoginPage() {
             }
           );
           console.log('✅ Google button rendered successfully');
-          setGoogleButtonRendered(true);
         } catch (err) {
           console.error('❌ Error initializing Google Sign-In:', err);
-          setGoogleButtonRendered(false);
         }
-      } else {
-        console.warn('⚠️ Cannot render button:', {
-          isLoggedIn,
-          hasGoogleAPI: !!window.google?.accounts?.id,
-          hasRef: !!googleButtonRef.current
-        });
       }
-    }, 100);
-    
-    return () => clearTimeout(timer);
+    };
+
+    initializeGoogleButton();
   }, [isLoggedIn, handleGoogleSuccess])
 
   function handleImage(e) {
@@ -480,139 +477,125 @@ export default function LoginPage() {
   const isGoogleConfigured = !!googleClientId && googleClientId !== "YOUR_GOOGLE_CLIENT_ID"
 
   return (
-    <GoogleOAuthProvider clientId={googleClientId || "YOUR_GOOGLE_CLIENT_ID"}>
-      <div style={{
-        fontFamily: "'Helvetica Neue', Arial, sans-serif",
-        background: "#fff",
-        minHeight: "100vh",
-        color: "#111",
-        position: "relative",
-        overflow: "hidden"
-      }}>
-        <style>{css}</style>
+    <div style={{
+      fontFamily: "'Helvetica Neue', Arial, sans-serif",
+      background: "#fff",
+      minHeight: "100vh",
+      color: "#111",
+      position: "relative",
+      overflow: "hidden"
+    }}>
+      <style>{css}</style>
 
-        <Navbar />
+      <Navbar />
 
-        {/* Doodles scattered */}
-        <D top="130px" left="16%" rotate={-12}><Rocket /></D>
-        <D top="200px" left="3%" rotate={-5}><ThumbsUp /></D>
-        <D bottom="220px" left="6%" rotate={8}><Bulb /></D>
-        <D top="300px" left="22%" rotate={-10}><Megaphone /></D>
-        <D top="80px" left="46%" rotate={8}><Bulb /></D>
-        <D top="160px" right="8%" rotate={12}><Briefcase /></D>
-        <D top="260px" right="18%" rotate={6}><Chart /></D>
-        <D top="420px" right="25%" rotate={8}><ImageIcon /></D>
-        <D bottom="220px" right="6%" rotate={-10}><Laptop /></D>
-        <D bottom="60px" right="3%" rotate={5}><Phone /></D>
+      {/* Doodles scattered */}
+      <D top="130px" left="16%" rotate={-12}><Rocket /></D>
+      <D top="200px" left="3%" rotate={-5}><ThumbsUp /></D>
+      <D bottom="220px" left="6%" rotate={8}><Bulb /></D>
+      <D top="300px" left="22%" rotate={-10}><Megaphone /></D>
+      <D top="80px" left="46%" rotate={8}><Bulb /></D>
+      <D top="160px" right="8%" rotate={12}><Briefcase /></D>
+      <D top="260px" right="18%" rotate={6}><Chart /></D>
+      <D top="420px" right="25%" rotate={8}><ImageIcon /></D>
+      <D bottom="220px" right="6%" rotate={-10}><Laptop /></D>
+      <D bottom="60px" right="3%" rotate={5}><Phone /></D>
 
-        {/* Login Card */}
-        <div className="login-wrapper">
-          <div className="login-card">
-            <h2 className="login-title">Welcome Back</h2>
-            <p className="login-subtitle">Start your interview preparation journey</p>
+      {/* Login Card */}
+      <div className="login-wrapper">
+        <div className="login-card">
+          <h2 className="login-title">Welcome Back</h2>
+          <p className="login-subtitle">Start your interview preparation journey</p>
 
-            {/* Error Message */}
-            {error && <div className="error-message">{error}</div>}
+          {/* Error Message */}
+          {error && <div className="error-message">{error}</div>}
 
-            {/* Profile Section - ALWAYS VISIBLE */}
-            <div className="profile-section">
-              <img
-                src={profile}
-                alt="Profile"
-                className="profile-image"
-                onLoad={() => console.log('Profile image loaded on page:', profile?.substring(0, 50))}
+          {/* Profile Section - ALWAYS VISIBLE */}
+          <div className="profile-section">
+            <img
+              src={profile}
+              alt="Profile"
+              className="profile-image"
+              onLoad={() => console.log('Profile image loaded on page:', profile?.substring(0, 50))}
+            />
+            <label className="profile-upload-label">
+              Change Avatar
+              <input
+                type="file"
+                accept="image/*"
+                onChange={handleImage}
+                className="profile-upload-input"
               />
-              <label className="profile-upload-label">
-                Change Avatar
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={handleImage}
-                  className="profile-upload-input"
+            </label>
+          </div>
+
+          {/* Google Sign-In Button - Manual rendering only */}
+          {!isLoggedIn && (
+            <div className="google-button-wrapper" style={{ marginTop: "32px", opacity: loading ? 0.5 : 1 }}>
+              {isGoogleConfigured ? (
+                <div
+                  ref={googleButtonRef}
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'center',
+                    width: '100%',
+                    pointerEvents: loading ? 'none' : 'auto'
+                  }}
                 />
-              </label>
+              ) : (
+                <div className="error-message" style={{ width: "100%", marginBottom: 0 }}>
+                  Google sign-in is not configured. Set VITE_GOOGLE_CLIENT_ID in client/.env.local.
+                </div>
+              )}
             </div>
+          )}
 
-            {/* Google Sign-In Button - Manual rendering with fallback */}
-            {!isLoggedIn && (
-              <div className="google-button-wrapper" style={{ marginTop: "32px", opacity: loading ? 0.5 : 1 }}>
-                {isGoogleConfigured ? (
-                  <>
-                    <div
-                      ref={googleButtonRef}
-                      style={{
-                        display: googleButtonRendered ? 'block' : 'none',
-                        textAlign: 'center',
-                        width: '100%'
-                      }}
-                    />
-                    {!googleButtonRendered && (
-                      <GoogleLogin
-                        onSuccess={handleGoogleSuccess}
-                        onError={handleGoogleError}
-                        auto_select={false}
-                        disabled={loading}
-                        theme="outline"
-                        size="large"
-                        text="signin_with"
-                      />
-                    )}
-                  </>
-                ) : (
-                  <div className="error-message" style={{ width: "100%", marginBottom: 0 }}>
-                    Google sign-in is not configured. Set VITE_GOOGLE_CLIENT_ID in client/.env.local.
-                  </div>
-                )}
-              </div>
-            )}
+          {isLoggedIn && (
+            <div style={{
+              marginTop: '32px',
+              padding: '16px',
+              background: '#f0f8f0',
+              borderRadius: '8px',
+              textAlign: 'center',
+              color: '#34a853',
+              fontSize: '0.9rem',
+              fontWeight: '500'
+            }}>
+              ✓ Already signed in as {currentUser?.firstName}. Redirecting...
+            </div>
+          )}
 
-            {isLoggedIn && (
+          {/* Loading Indicator */}
+          {loading && (
+            <div style={{
+              marginTop: '24px',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: '12px'
+            }}>
               <div style={{
-                marginTop: '32px',
-                padding: '16px',
-                background: '#f0f8f0',
-                borderRadius: '8px',
-                textAlign: 'center',
-                color: '#34a853',
-                fontSize: '0.9rem',
+                width: '16px',
+                height: '16px',
+                border: '2px solid #e0e0e0',
+                borderTop: '2px solid #111',
+                borderRadius: '50%',
+                animation: 'spin 0.8s linear infinite'
+              }} />
+              <p style={{
+                fontSize: '0.85rem',
+                color: '#666',
+                margin: 0,
                 fontWeight: '500'
               }}>
-                ✓ Already signed in as {currentUser?.firstName}. Redirecting...
-              </div>
-            )}
+                Signing in...
+              </p>
+            </div>
+          )}
 
-            {/* Loading Indicator */}
-            {loading && (
-              <div style={{
-                marginTop: '24px',
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                gap: '12px'
-              }}>
-                <div style={{
-                  width: '16px',
-                  height: '16px',
-                  border: '2px solid #e0e0e0',
-                  borderTop: '2px solid #111',
-                  borderRadius: '50%',
-                  animation: 'spin 0.8s linear infinite'
-                }} />
-                <p style={{
-                  fontSize: '0.85rem',
-                  color: '#666',
-                  margin: 0,
-                  fontWeight: '500'
-                }}>
-                  Signing in...
-                </p>
-              </div>
-            )}
-
-            {/* Login Navigation removed - logged-in users now start at step 2 directly */}
-          </div>
+          {/* Login Navigation removed - logged-in users now start at step 2 directly */}
         </div>
       </div>
-    </GoogleOAuthProvider>
+    </div>
   )
 }
