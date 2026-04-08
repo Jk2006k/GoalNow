@@ -1,14 +1,39 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { authService } from "../services/authService";
 
 export default function HomePageNavbar() {
   const navigate = useNavigate();
   const [isLoggedIn, setIsLoggedIn] = useState(false);
 
   useEffect(() => {
-    // Check if user is logged in from localStorage
-    const userLoggedIn = localStorage.getItem("isLoggedIn");
-    setIsLoggedIn(userLoggedIn === "true");
+    const checkAuthState = () => {
+      const userLoggedIn = authService.isLoggedIn();
+      setIsLoggedIn(userLoggedIn);
+    };
+
+    // Check on mount
+    checkAuthState();
+
+    // Check whenever page becomes visible
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        checkAuthState();
+      }
+    };
+
+    // Also check when storage changes (from other tabs)
+    const handleStorageChange = () => {
+      checkAuthState();
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("storage", handleStorageChange);
+
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("storage", handleStorageChange);
+    };
   }, []);
 
   const handleNavigation = (item) => {
@@ -16,9 +41,29 @@ export default function HomePageNavbar() {
     if (item === "Profile") navigate("/profile");
     if (item === "Home") navigate("/home");
     if (item === "Logout") {
-      localStorage.removeItem("isLoggedIn");
+      // Call authService logout to clear auth data
+      authService.logout();
+      
+      // Clear all storage
+      sessionStorage.clear();
+      
+      // Update local state
       setIsLoggedIn(false);
-      navigate("/");
+      
+      // Sign out from Google
+      if (window.google?.accounts?.id) {
+        window.google.accounts.id.revoke('', () => {
+          console.log('Google sign-out completed');
+        });
+      }
+      
+      // Navigate and reload to clear all cached state
+      navigate("/login");
+      
+      // Force full page reload after short delay
+      setTimeout(() => {
+        window.location.href = "/login";
+      }, 300);
     }
   };
 

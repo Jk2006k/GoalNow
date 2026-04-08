@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react"
+import React, { useState, useEffect, useRef } from "react"
 import { useNavigate } from "react-router-dom"
 import { GoogleOAuthProvider, GoogleLogin } from "@react-oauth/google"
 import { authService } from "../services/authService"
@@ -7,6 +7,7 @@ import { Rocket, Briefcase, Chart, Bulb, Megaphone, Phone, Laptop, ThumbsUp, Ima
 
 export default function LoginPage() {
   const navigate = useNavigate()
+  const googleButtonRef = useRef(null)
   
   const [isLoggedIn, setIsLoggedIn] = useState(() => authService.isLoggedIn())
   const [currentUser, setCurrentUser] = useState(() => 
@@ -16,6 +17,56 @@ export default function LoginPage() {
   const [profile, setProfile] = useState(() => `https://api.dicebear.com/7.x/adventurer/svg?seed=${Math.random()}`)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
+  const [googleButtonRendered, setGoogleButtonRendered] = useState(false)
+
+  // Helper function to log profile state
+  const logProfileState = (location) => {
+    console.log(`📸 [${location}] Profile state:`);
+    console.log('- Length:', profile?.length);
+    console.log('- Is base64:', profile?.startsWith('data:image') ? 'YES ✅' : 'NO (URL)');
+    console.log('- First 80 chars:', profile?.substring(0, 80));
+    return profile;
+  }
+
+  // Google Sign-In Handler
+  const handleGoogleSuccess = async (credentialResponse) => {
+    try {
+      setLoading(true)
+      setError("")
+
+      logProfileState('GOOGLE SIGNIN CLICKED');
+
+      // Decode the JWT token from Google
+      const token = credentialResponse.credential
+      const decodedToken = JSON.parse(atob(token.split('.')[1]))
+
+      const currentProfile = logProfileState('BEFORE SENDING TO SERVER');
+
+      const userData = {
+        googleId: decodedToken.sub,
+        firstName: decodedToken.given_name,
+        lastName: decodedToken.family_name || "",
+        email: decodedToken.email,
+        profileImage: currentProfile, // Use uploaded image or default dicebear avatar
+        googleProfileImage: decodedToken.picture,
+      }
+
+      console.log('📤 Sending userData to server with profileImage');
+
+      // Sign up using auth service
+      await authService.googleSignup(userData)
+      navigate("/home")
+    } catch (err) {
+      console.error("Google sign-in error:", err)
+      setError(err.message || "Failed to sign up with Google")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleGoogleError = () => {
+    setError("Failed to sign in with Google")
+  }
 
   // Check auth state on component mount and when page becomes visible
   useEffect(() => {
@@ -29,6 +80,9 @@ export default function LoginPage() {
       // Reset form if user is not logged in
       if (!loggedIn) {
         setError("")
+        setLoading(false)
+        // Generate new random profile avatar
+        setProfile(`https://api.dicebear.com/7.x/adventurer/svg?seed=${Math.random()}`)
       }
     }
 
@@ -46,14 +100,64 @@ export default function LoginPage() {
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange)
   }, [])
 
-  // Helper function to log profile state
-  const logProfileState = (location) => {
-    console.log(`📸 [${location}] Profile state:`);
-    console.log('- Length:', profile?.length);
-    console.log('- Is base64:', profile?.startsWith('data:image') ? 'YES ✅' : 'NO (URL)');
-    console.log('- First 80 chars:', profile?.substring(0, 80));
-    return profile;
-  }
+  // Redirect to home if user is logged in
+  useEffect(() => {
+    if (isLoggedIn && !loading) {
+      const timer = setTimeout(() => {
+        navigate("/home")
+      }, 1500)
+      return () => clearTimeout(timer)
+    }
+  }, [isLoggedIn, loading, navigate])
+
+  // Initialize Google Sign-In with manual button rendering
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (!isLoggedIn && window.google?.accounts?.id && googleButtonRef.current) {
+        try {
+          console.log('🔍 Initializing Google Sign-In button...');
+          console.log('- isLoggedIn:', isLoggedIn);
+          console.log('- googleButtonRef.current exists:', !!googleButtonRef.current);
+          console.log('- window.google.accounts.id exists:', !!window.google?.accounts?.id);
+          
+          // Disable automatic selection and prompts
+          window.google.accounts.id.disableAutoSelect();
+          
+          // Initialize Google ID with callback
+          window.google.accounts.id.initialize({
+            client_id: import.meta.env.VITE_GOOGLE_CLIENT_ID,
+            auto_select: false,
+            callback: handleGoogleSuccess
+          });
+          
+          // Render the button manually with clean default styles
+          window.google.accounts.id.renderButton(
+            googleButtonRef.current,
+            {
+              theme: "outline",
+              size: "large",
+              text: "signin_with",
+              shape: "rectangular",
+              logo_alignment: "left"
+            }
+          );
+          console.log('✅ Google button rendered successfully');
+          setGoogleButtonRendered(true);
+        } catch (err) {
+          console.error('❌ Error initializing Google Sign-In:', err);
+          setGoogleButtonRendered(false);
+        }
+      } else {
+        console.warn('⚠️ Cannot render button:', {
+          isLoggedIn,
+          hasGoogleAPI: !!window.google?.accounts?.id,
+          hasRef: !!googleButtonRef.current
+        });
+      }
+    }, 100);
+    
+    return () => clearTimeout(timer);
+  }, [isLoggedIn, handleGoogleSuccess])
 
   function handleImage(e) {
     const file = e.target.files[0]
@@ -111,46 +215,6 @@ export default function LoginPage() {
     }
   }
 
-  // Google Sign-In Handler
-  const handleGoogleSuccess = async (credentialResponse) => {
-    try {
-      setLoading(true)
-      setError("")
-
-      logProfileState('GOOGLE SIGNIN CLICKED');
-
-      // Decode the JWT token from Google
-      const token = credentialResponse.credential
-      const decodedToken = JSON.parse(atob(token.split('.')[1]))
-
-      const currentProfile = logProfileState('BEFORE SENDING TO SERVER');
-
-      const userData = {
-        googleId: decodedToken.sub,
-        firstName: decodedToken.given_name,
-        lastName: decodedToken.family_name || "",
-        email: decodedToken.email,
-        profileImage: currentProfile, // Use uploaded image or default dicebear avatar
-        googleProfileImage: decodedToken.picture,
-      }
-
-      console.log('📤 Sending userData to server with profileImage');
-
-      // Sign up using auth service
-      await authService.googleSignup(userData)
-      navigate("/home")
-    } catch (err) {
-      console.error("Google sign-in error:", err)
-      setError(err.message || "Failed to sign up with Google")
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const handleGoogleError = () => {
-    setError("Failed to sign in with Google")
-  }
-
   const css = `
     * {
       box-sizing: border-box;
@@ -184,6 +248,15 @@ export default function LoginPage() {
       to {
         opacity: 1;
         transform: translateY(0);
+      }
+    }
+
+    @keyframes spin {
+      from {
+        transform: rotate(0deg);
+      }
+      to {
+        transform: rotate(360deg);
       }
     }
 
@@ -354,11 +427,16 @@ export default function LoginPage() {
     .google-button-wrapper {
       display: flex;
       justify-content: center;
+      align-items: center;
       margin-bottom: 16px;
+      min-height: 40px;
     }
 
     .google-button-wrapper > div {
-      width: 100% !important;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      width: 100%;
     }
 
     .loading {
@@ -455,19 +533,81 @@ export default function LoginPage() {
               </label>
             </div>
 
-            {/* Google Sign-In Button */}
-            <div className="google-button-wrapper" style={{ marginTop: "32px" }}>
-              {isGoogleConfigured ? (
-                <GoogleLogin
-                  onSuccess={handleGoogleSuccess}
-                  onError={handleGoogleError}
-                />
-              ) : (
-                <div className="error-message" style={{ width: "100%", marginBottom: 0 }}>
-                  Google sign-in is not configured. Set VITE_GOOGLE_CLIENT_ID in client/.env.local.
-                </div>
-              )}
-            </div>
+            {/* Google Sign-In Button - Manual rendering with fallback */}
+            {!isLoggedIn && (
+              <div className="google-button-wrapper" style={{ marginTop: "32px", opacity: loading ? 0.5 : 1 }}>
+                {isGoogleConfigured ? (
+                  <>
+                    <div
+                      ref={googleButtonRef}
+                      style={{
+                        display: googleButtonRendered ? 'block' : 'none',
+                        textAlign: 'center',
+                        width: '100%'
+                      }}
+                    />
+                    {!googleButtonRendered && (
+                      <GoogleLogin
+                        onSuccess={handleGoogleSuccess}
+                        onError={handleGoogleError}
+                        auto_select={false}
+                        disabled={loading}
+                        theme="outline"
+                        size="large"
+                        text="signin_with"
+                      />
+                    )}
+                  </>
+                ) : (
+                  <div className="error-message" style={{ width: "100%", marginBottom: 0 }}>
+                    Google sign-in is not configured. Set VITE_GOOGLE_CLIENT_ID in client/.env.local.
+                  </div>
+                )}
+              </div>
+            )}
+
+            {isLoggedIn && (
+              <div style={{
+                marginTop: '32px',
+                padding: '16px',
+                background: '#f0f8f0',
+                borderRadius: '8px',
+                textAlign: 'center',
+                color: '#34a853',
+                fontSize: '0.9rem',
+                fontWeight: '500'
+              }}>
+                ✓ Already signed in as {currentUser?.firstName}. Redirecting...
+              </div>
+            )}
+
+            {/* Loading Indicator */}
+            {loading && (
+              <div style={{
+                marginTop: '24px',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: '12px'
+              }}>
+                <div style={{
+                  width: '16px',
+                  height: '16px',
+                  border: '2px solid #e0e0e0',
+                  borderTop: '2px solid #111',
+                  borderRadius: '50%',
+                  animation: 'spin 0.8s linear infinite'
+                }} />
+                <p style={{
+                  fontSize: '0.85rem',
+                  color: '#666',
+                  margin: 0,
+                  fontWeight: '500'
+                }}>
+                  Signing in...
+                </p>
+              </div>
+            )}
 
             {/* Login Navigation removed - logged-in users now start at step 2 directly */}
           </div>
