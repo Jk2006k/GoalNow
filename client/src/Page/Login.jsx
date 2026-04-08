@@ -8,35 +8,12 @@ import { Rocket, Briefcase, Chart, Bulb, Megaphone, Phone, Laptop, ThumbsUp, Ima
 export default function LoginPage() {
   const navigate = useNavigate()
   
-  // Construct full name from firstName and lastName
-  const getFullName = (user) => {
-    if (!user) return ""
-    const firstName = user.firstName || ""
-    const lastName = user.lastName || ""
-    return `${firstName} ${lastName}`.trim()
-  }
-  
   const [isLoggedIn, setIsLoggedIn] = useState(() => authService.isLoggedIn())
   const [currentUser, setCurrentUser] = useState(() => 
     authService.isLoggedIn() ? authService.getCurrentUser() : null
   )
   
-  const [name, setName] = useState(() => {
-    const user = authService.isLoggedIn() ? authService.getCurrentUser() : null
-    if (user) {
-      return getFullName(user)
-    }
-    return ""
-  })
-  const [email, setEmail] = useState("")
   const [profile, setProfile] = useState(() => `https://api.dicebear.com/7.x/adventurer/svg?seed=${Math.random()}`)
-  const [step, setStep] = useState(() => {
-    const user = authService.isLoggedIn() ? authService.getCurrentUser() : null
-    if (user && getFullName(user)) {
-      return 2
-    }
-    return 1
-  })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
 
@@ -51,15 +28,7 @@ export default function LoginPage() {
       
       // Reset form if user is not logged in
       if (!loggedIn) {
-        setName("")
-        setStep(1)
-        setEmail("")
         setError("")
-      } else if (user && getFullName(user)) {
-        // If logged in, go to step 2
-        setName(getFullName(user))
-        setStep(2)
-        setEmail("")
       }
     }
 
@@ -180,61 +149,6 @@ export default function LoginPage() {
 
   const handleGoogleError = () => {
     setError("Failed to sign in with Google")
-  }
-
-  // Email Sign-Up Handler
-  const handleEmailSignup = async () => {
-    try {
-      setLoading(true)
-      setError("")
-
-      // Better validation - check if fields are truly empty
-      const trimmedName = name.trim()
-      const trimmedEmail = email.trim()
-
-      if (!trimmedName) {
-        setError("Please enter your name")
-        setLoading(false)
-        return
-      }
-
-      if (!trimmedEmail) {
-        setError("Please enter your email")
-        setLoading(false)
-        return
-      }
-
-      // Basic email format check
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-      if (!emailRegex.test(trimmedEmail)) {
-        setError("Please enter a valid email address")
-        setLoading(false)
-        return
-      }
-
-      logProfileState('EMAIL SIGNUP CLICKED');
-
-      const currentProfile = logProfileState('BEFORE SENDING TO SERVER');
-
-      const userData = {
-        firstName: trimmedName,
-        lastName: "",
-        email: trimmedEmail,
-        profileImage: currentProfile, // Always send - either dicebear URL or uploaded image
-      }
-
-      console.log('📤 Sending userData to authService.emailSignup...');
-
-      // Sign up using auth service
-      const response = await authService.emailSignup(userData)
-      console.log('✅ Signup successful, navigating to home')
-      navigate("/home")
-    } catch (err) {
-      console.error("Email signup error:", err)
-      setError(err.message || "Failed to sign up")
-    } finally {
-      setLoading(false)
-    }
   }
 
   const css = `
@@ -541,113 +455,19 @@ export default function LoginPage() {
               </label>
             </div>
 
-            {step === 1 && !isLoggedIn ? (
-              <>
-                {/* Step 1: Name Input - Only show for non-logged-in users */}
-                <div className="form-group">
-                  <input
-                    type="text"
-                    placeholder="Enter your name"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    className="form-input"
-                    disabled={loading}
-                  />
+            {/* Google Sign-In Button */}
+            <div className="google-button-wrapper" style={{ marginTop: "32px" }}>
+              {isGoogleConfigured ? (
+                <GoogleLogin
+                  onSuccess={handleGoogleSuccess}
+                  onError={handleGoogleError}
+                />
+              ) : (
+                <div className="error-message" style={{ width: "100%", marginBottom: 0 }}>
+                  Google sign-in is not configured. Set VITE_GOOGLE_CLIENT_ID in client/.env.local.
                 </div>
-
-                {/* Continue Button */}
-                <button 
-                  className="btn-primary" 
-                  onClick={() => name.trim() && setStep(2)}
-                  disabled={!name.trim() || loading}
-                  style={{ marginBottom: "24px" }}
-                >
-                  {loading ? "Loading..." : "Continue"}
-                </button>
-              </>
-            ) : (
-              <>
-                {/* Step 2: Email Signup */}
-                <div className="form-group">
-                  <label style={{ fontSize: "0.85rem", fontWeight: "600", display: "block", marginBottom: "6px" }}>
-                    {!isLoggedIn ? `Hello, ${name}!` : "Enter your email to continue"}
-                  </label>
-                  <input
-                    type="email"
-                    placeholder="Enter your email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="form-input"
-                    disabled={loading}
-                  />
-                </div>
-
-                {/* Signup Button */}
-                <button 
-                  className="btn-primary" 
-                  disabled={!email.trim() || loading}
-                  onClick={handleEmailSignup}
-                  style={{ marginBottom: "16px" }}
-                >
-                  {loading ? "Signing up..." : "Sign Up"}
-                </button>
-
-                {/* Divider */}
-                <div className="divider-wrapper">
-                  <div className="divider-line"></div>
-                  <span className="divider-text">OR</span>
-                  <div className="divider-line"></div>
-                </div>
-
-                {/* Google Button */}
-                <div className="google-button-wrapper">
-                  {isGoogleConfigured ? (
-                    <GoogleLogin
-                      onSuccess={handleGoogleSuccess}
-                      onError={handleGoogleError}
-                    />
-                  ) : (
-                    <div className="error-message" style={{ width: "100%", marginBottom: 0 }}>
-                      Google sign-in is not configured. Set VITE_GOOGLE_CLIENT_ID in client/.env.local.
-                    </div>
-                  )}
-                </div>
-
-                {/* Back Button */}
-                <button 
-                  style={{
-                    width: "100%",
-                    background: "transparent",
-                    border: "1.5px solid #e0e0e0",
-                    padding: "12px",
-                    cursor: loading ? "not-allowed" : "pointer",
-                    fontWeight: "600",
-                    fontSize: "0.85rem",
-                    borderRadius: "8px",
-                    transition: "all 0.25s ease",
-                    fontFamily: "inherit",
-                    opacity: loading ? 0.6 : 1,
-                  }}
-                  onClick={() => {
-                    setStep(1)
-                    setEmail("")
-                  }}
-                  disabled={loading}
-                  onMouseEnter={(e) => {
-                    if (!loading) {
-                      e.currentTarget.style.borderColor = "#111"
-                      e.currentTarget.style.background = "#f9f9f9"
-                    }
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.borderColor = "#e0e0e0"
-                    e.currentTarget.style.background = "transparent"
-                  }}
-                >
-                  Back
-                </button>
-              </>
-            )}
+              )}
+            </div>
 
             {/* Login Navigation removed - logged-in users now start at step 2 directly */}
           </div>

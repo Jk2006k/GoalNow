@@ -45,11 +45,20 @@ export default function LandingPage() {
   const navigate  = useNavigate();
   const isMobile  = useIsMobile();
 
+  const aboutRef     = useRef(null);
   const howWeWorkRef = useScrollReveal();
   const stepRefs     = [useScrollReveal(), useScrollReveal(), useScrollReveal(), useScrollReveal()];
   const servicesRef  = useScrollReveal();
   const svcRefs      = [useScrollReveal(), useScrollReveal(), useScrollReveal()];
   const footerRef    = useScrollReveal();
+
+  const scrollToAbout = () => {
+    aboutRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  const scrollToHowWeWork = () => {
+    howWeWorkRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
 
   const css = `
     /* ── Keyframes ─────────────────────────────────── */
@@ -213,7 +222,7 @@ export default function LandingPage() {
   ) : (
     <div style={{ fontFamily:"'Helvetica Neue',Arial,sans-serif", background:"#f5f5f5", minHeight:"100vh", color:"#111" }}>
       <style>{css}</style>
-      <Navbar />
+      <Navbar onAboutClick={scrollToAbout} onHowWeWorkClick={scrollToHowWeWork} />
 
       {/* ══════════════════ HERO ══════════════════ */}
       <section
@@ -288,7 +297,7 @@ export default function LandingPage() {
       </section>
 
       {/* ══════════════════ ABOUT ══════════════════ */}
-      <section className="lp-section" style={{ background:"#fff", padding:"80px 64px" }}>
+      <section ref={aboutRef} className="lp-section" style={{ background:"#fff", padding:"80px 64px" }}>
         <div className="lp-about-grid">
           <div>
             <h2 style={{

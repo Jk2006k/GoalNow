@@ -14,7 +14,7 @@ export default function HomePageNavbar() {
   const handleNavigation = (item) => {
     if (item === "Login/Signup") navigate("/login");
     if (item === "Profile") navigate("/profile");
-    if (item === "About") navigate("/home");
+    if (item === "Home") navigate("/home");
     if (item === "Logout") {
       localStorage.removeItem("isLoggedIn");
       setIsLoggedIn(false);
@@ -22,7 +22,7 @@ export default function HomePageNavbar() {
     }
   };
 
-  const navItems = isLoggedIn ? ["About", "Profile", "Logout"] : ["About", "Login/Signup"];
+  const navItems = isLoggedIn ? ["Home", "Profile", "Logout"] : ["Home", "Login/Signup"];
 
   return (
     <nav style={{

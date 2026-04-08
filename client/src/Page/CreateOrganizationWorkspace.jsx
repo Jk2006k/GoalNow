@@ -25,7 +25,7 @@ export default function MaintenancePage() {
   const [progressWidth, setProgressWidth] = useState(0)
 
   useEffect(() => {
-    const t = setTimeout(() => setProgressWidth(68), 1600)
+    const t = setTimeout(() => setProgressWidth(10), 1600)
     return () => clearTimeout(t)
   }, [])
 
@@ -65,7 +65,7 @@ export default function MaintenancePage() {
         <div className="mp-progress-wrap">
           <div className="mp-progress-labels">
             <span>Progress</span>
-            <span>68%</span>
+            <span>10%</span>
           </div>
           <div className="mp-progress-track">
             <div

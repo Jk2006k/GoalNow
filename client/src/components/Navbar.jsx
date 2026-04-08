@@ -1,7 +1,7 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
 
-export default function Navbar() {
+export default function Navbar({ onAboutClick, onHowWeWorkClick }) {
   const navigate = useNavigate();
 
   return (
@@ -17,7 +17,7 @@ export default function Navbar() {
     }}>
       <h1 style={{ fontSize: "2rem", fontWeight: "800", letterSpacing: "-1px", margin: 0 }}>intbar.</h1>
       <div style={{ display: "flex", gap: "2px" }}>
-        {["Home", "About", "How we work", "Login/Signup"].map((item) => (
+        {["About", "How we work", "Login/Signup"].map((item) => (
           <button
             key={item}
             style={{
@@ -34,7 +34,8 @@ export default function Navbar() {
             }}
             onClick={() => {
               if (item === "Login/Signup") navigate("/login");
-              if (item === "Home") navigate("/");
+              if (item === "About" && onAboutClick) onAboutClick();
+              if (item === "How we work" && onHowWeWorkClick) onHowWeWorkClick();
             }}
             onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(0,0,0,0.07)")}
             onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
