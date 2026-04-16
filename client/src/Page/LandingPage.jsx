@@ -52,6 +52,9 @@ export default function LandingPage() {
   const svcRefs      = [useScrollReveal(), useScrollReveal(), useScrollReveal()];
   const footerRef    = useScrollReveal();
 
+  const divDividerRef1 = useScrollReveal();
+  const divDividerRef2 = useScrollReveal();
+
   const scrollToAbout = () => {
     aboutRef.current?.scrollIntoView({ behavior: "smooth" });
   };
@@ -335,7 +338,7 @@ export default function LandingPage() {
         >
           How We Work
         </h2>
-        <div ref={useScrollReveal()} className="lp-divider" style={{ maxWidth:"80px" }} />
+        <div ref={divDividerRef1} className="lp-divider" style={{ maxWidth:"80px" }} />
 
         <div className="lp-steps-grid">
           {[
@@ -383,7 +386,7 @@ export default function LandingPage() {
         >
           What We Do
         </h2>
-        <div ref={useScrollReveal()} className="lp-divider" style={{ maxWidth:"60px" }} />
+        <div ref={divDividerRef2} className="lp-divider" style={{ maxWidth:"60px" }} />
 
         <div className="lp-svc-grid">
           {[

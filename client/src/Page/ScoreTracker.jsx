@@ -1069,6 +1069,9 @@ export default function ScoreTracker() {
                     <div
                       className="st-test-header"
                       onClick={() => setExpandedTest(expandedTest === `beh-${test.testNumber}` ? null : `beh-${test.testNumber}`)}
+                      role="button"
+                      tabIndex={0}
+                      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setExpandedTest(expandedTest === `beh-${test.testNumber}` ? null : `beh-${test.testNumber}`); } }}
                     >
                       <div className="st-test-left">
                         <div className="st-test-number">{test.testNumber}</div>
@@ -1099,6 +1102,9 @@ export default function ScoreTracker() {
                             key={qIdx}
                             className="st-question-item"
                             onClick={() => (q.displayScoreReady && q.score !== null) && fetchQuestionDetail(q._id)}
+                            role="button"
+                            tabIndex={0}
+                            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); if (q.displayScoreReady && q.score !== null) fetchQuestionDetail(q._id); } }}
                           >
                             <div className="st-question-left">
                               <div className="st-q-index">Q{qIdx + 1}</div>
@@ -1141,6 +1147,9 @@ export default function ScoreTracker() {
                     <div
                       className="st-test-header"
                       onClick={() => setExpandedTest(expandedTest === `tech-${test.testNumber}` ? null : `tech-${test.testNumber}`)}
+                      role="button"
+                      tabIndex={0}
+                      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setExpandedTest(expandedTest === `tech-${test.testNumber}` ? null : `tech-${test.testNumber}`); } }}
                     >
                       <div className="st-test-left">
                         <div className="st-test-number tech">{test.testNumber}</div>
@@ -1171,6 +1180,9 @@ export default function ScoreTracker() {
                             key={qIdx}
                             className="st-question-item"
                             onClick={() => (q.displayScoreReady && q.score !== null) && fetchQuestionDetail(q._id)}
+                            role="button"
+                            tabIndex={0}
+                            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); if (q.displayScoreReady && q.score !== null) fetchQuestionDetail(q._id); } }}
                           >
                             <div className="st-question-left">
                               <div className="st-q-index">Q{qIdx + 1}</div>
@@ -1214,6 +1226,9 @@ export default function ScoreTracker() {
                       <div
                         className="st-test-header"
                         onClick={() => setExpandedDsaTest(expandedDsaTest === testIdx ? null : testIdx)}
+                        role="button"
+                        tabIndex={0}
+                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setExpandedDsaTest(expandedDsaTest === testIdx ? null : testIdx); } }}
                       >
                         <div className="st-test-left">
                           <div className="st-test-number dsa">{testIdx + 1}</div>
@@ -1293,8 +1308,8 @@ export default function ScoreTracker() {
       </div>
 
       {selectedQuestion && selectedQuestion.isReady && (
-        <div className="st-modal-overlay" onClick={() => setSelectedQuestion(null)}>
-          <div className="st-modal" onClick={e => e.stopPropagation()}>
+        <div className="st-modal-overlay" onClick={() => setSelectedQuestion(null)} role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { setSelectedQuestion(null); } }}>
+          <div className="st-modal" onClick={e => e.stopPropagation()} role="button" tabIndex={0} onKeyDown={e => e.stopPropagation()}>
             <button className="st-modal-close" onClick={() => setSelectedQuestion(null)}>✕</button>
 
             <div className="st-modal-top">

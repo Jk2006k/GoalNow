@@ -83,7 +83,7 @@ export default function HomePageNavbar() {
       right: 0,
       zIndex: 100,
     }}>
-      <h1 style={{ fontSize: "2rem", fontWeight: "800", color:"#24344d" ,letterSpacing: "-1px", margin: 0, cursor: "pointer" }} onClick={() => navigate("/")} >intbar.</h1>
+      <h1 style={{ fontSize: "2rem", fontWeight: "800", color:"#24344d" ,letterSpacing: "-1px", margin: 0, cursor: "pointer" }} onClick={() => navigate("/")} role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { navigate("/"); } }}>intbar.</h1>
       <div style={{ display: "flex", gap: "2px" }}>
         {navItems.map((item) => (
           <button

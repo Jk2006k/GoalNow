@@ -263,6 +263,9 @@ const TestCasesList = ({ results }) => {
           <div
             style={styles.testCaseHeader}
             onClick={() => setExpandedIdx(expandedIdx === idx ? null : idx)}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setExpandedIdx(expandedIdx === idx ? null : idx); } }}
           >
             <span>
               {tc.passed ? '✅' : '❌'} Test Case {idx + 1}

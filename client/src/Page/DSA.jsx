@@ -826,6 +826,9 @@ return(
               key={key}
               className={`difficulty-option ${difficultySelected === key ? 'selected' : ''}`}
               onClick={() => setDifficultySelected(key)}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setDifficultySelected(key); } }}
             >
               {difficultySelected === key && <div className="difficulty-checkmark">✓</div>}
               <div className="difficulty-badge">{icon}</div>

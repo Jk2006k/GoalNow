@@ -6,6 +6,7 @@ import "./DSAInterview.css"
 
 export default function DSAInterview() {
   const navigate = useNavigate()
+  const showManualInputSection = false;
 
   // Get actual user ID from auth service
   const getUserId = () => {
@@ -785,6 +786,9 @@ export default function DSAInterview() {
                             : ""
                         }`}
                         onClick={() => handleTestCaseClick(idx)}
+                        role="button"
+                        tabIndex={0}
+                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleTestCaseClick(idx); } }}
                       >
                         <span className="tc-name">{tc.name || `Test ${tc.id}`}</span>
                         <span className="tc-status">
@@ -917,7 +921,7 @@ export default function DSAInterview() {
             )}
           </div>
 
-          {false && (
+          {showManualInputSection && (
             <div className="output-section input-section" style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
               <div className="section-label">Custom Input</div>
               <textarea

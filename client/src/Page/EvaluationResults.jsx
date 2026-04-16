@@ -395,8 +395,8 @@ export default function EvaluationResults(){
       )}
 
       {selectedEvaluation && (
-        <div className="modal" onClick={() => setSelectedEvaluation(null)}>
-          <div className="modal-content" onClick={e => e.stopPropagation()}>
+        <div className="modal" onClick={() => setSelectedEvaluation(null)} role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { setSelectedEvaluation(null); } }}>
+          <div className="modal-content" onClick={e => e.stopPropagation()} role="button" tabIndex={0} onKeyDown={e => e.stopPropagation()}>
             <button className="modal-close" onClick={() => setSelectedEvaluation(null)}>✕</button>
             
             <div className="modal-header">

@@ -398,6 +398,9 @@ const TestCaseResult = ({ testCase, index, isHidden }) => {
       <div
         style={{ ...styles.testCaseHeader, borderLeftColor: statusColor }}
         onClick={() => setExpanded(!expanded)}
+        role="button"
+        tabIndex={0}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setExpanded(!expanded); } }}
       >
         <span style={{ flex: 1 }}>
           <strong>{statusIcon} Test Case {index + 1}</strong>
