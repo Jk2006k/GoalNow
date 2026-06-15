@@ -1,6 +1,7 @@
 import React, { useRef, useState, useEffect, useCallback } from "react"
 import { useNavigate } from "react-router-dom"
 import apiClient, { authService } from "../services/authService"
+import useQuestionSpeech from "../hooks/useQuestionSpeech"
 
 function loadScript(src) {
   return new Promise((resolve, reject) => {
@@ -56,6 +57,30 @@ export default function TechnicalInterview() {
   const isRecognizingRef     = useRef(false)
 
   const NUM_Q   = 10
+  const currentQuestion = shuffledQuestions[currentQuestionIdx] || ""
+  const {
+    status: questionSpeechStatus,
+    error: questionSpeechError,
+    supported: isQuestionSpeechSupported,
+    isPreparing: isQuestionSpeechPreparing,
+    isPlaying: isQuestionSpeechPlaying,
+    isPaused: isQuestionSpeechPaused,
+    isComplete: isQuestionSpeechComplete,
+    pause: pauseQuestionSpeech,
+    resume: resumeQuestionSpeech,
+    replay: replayQuestionSpeech,
+    cancel: cancelQuestionSpeech,
+  } = useQuestionSpeech(currentQuestion)
+  const isRecordingBlocked = !isQuestionSpeechComplete
+  const questionSpeechLabel = (() => {
+    if (!isQuestionSpeechSupported) return "Voice playback is unavailable in this browser."
+    if (isQuestionSpeechPreparing) return "Preparing interviewer voice..."
+    if (isQuestionSpeechPlaying) return "Technical interviewer is reading the question."
+    if (isQuestionSpeechPaused) return "Question playback paused."
+    if (questionSpeechStatus === "completed") return "Question read aloud. You can start recording."
+    if (questionSpeechStatus === "error") return questionSpeechError || "Voice playback failed. You can start recording."
+    return "Question voice ready."
+  })()
 
   const startInterviewVideoRecording = useCallback(() => {
     const stream = window.__goalnowScreenStream || screenRef.current?.srcObject
@@ -484,6 +509,8 @@ export default function TechnicalInterview() {
     `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`
 
   const stopAllMedia = () => {
+    cancelQuestionSpeech()
+
     if (screenshotIntervalRef.current) {
       clearInterval(screenshotIntervalRef.current)
       screenshotIntervalRef.current = null
@@ -742,6 +769,11 @@ export default function TechnicalInterview() {
 
   // ─── MIC TOGGLE ───────────────────────────────────────────────────────────
   const handleMicToggle = async () => {
+    if (!isMicActive && isRecordingBlocked) {
+      alert('Please wait until the interviewer finishes reading the question.')
+      return
+    }
+
     console.log('handleMicToggle called. isMicActive:', isMicActive, 'hasStopped:', hasStopped)
     if (!isMicActive && !hasStopped) {
       try {
@@ -853,12 +885,13 @@ export default function TechnicalInterview() {
     if (hasSubmittedRef.current) return
     hasSubmittedRef.current = true
 
+    cancelQuestionSpeech()
     await stopAndUploadInterviewVideo()
     stopAllMedia()
     await finalizeProctoring()
     document.exitFullscreen().catch(() => {})
     navigate("/home")
-  }, [finalizeProctoring, navigate, stopAndUploadInterviewVideo])
+  }, [cancelQuestionSpeech, finalizeProctoring, navigate, stopAndUploadInterviewVideo])
 
   useEffect(() => {
     submitHandlerRef.current = handleSubmit
@@ -905,7 +938,17 @@ export default function TechnicalInterview() {
 .qcn{display:flex;flex-direction:column;align-items:center;text-align:center;max-width:850px;width:100%;}
 .qtg{font-size:.72rem;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:#999;margin-bottom:24px;display:flex;align-items:center;gap:8px;}
 .qtg::before,.qtg::after{content:'';display:block;width:28px;height:1px;background:#ccc;}
-.qtx{font-size:1.65rem;font-weight:600;line-height:1.55;color:#111;margin-bottom:52px;letter-spacing:-.01em;}
+.qtx{font-size:1.65rem;font-weight:600;line-height:1.55;color:#111;margin-bottom:22px;letter-spacing:-.01em;}
+.tts{display:flex;flex-direction:column;align-items:center;gap:12px;margin-bottom:30px;width:100%;}
+.tts-status{display:flex;align-items:center;gap:8px;font-size:.78rem;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#777;min-height:18px;}
+.tts-dot{width:7px;height:7px;border-radius:50%;background:#999;}
+.tts-dot.active{background:#111;animation:dblink 1.1s ease-in-out infinite;}
+.tts-dot.ready{background:#2ecc71;}
+.tts-dot.warn{background:#c47f00;}
+.tts-controls{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;}
+.tts-btn{padding:8px 16px;background:#fff;color:#111;border:1px solid #ccc;border-radius:7px;cursor:pointer;font-family:'Sora',sans-serif;font-weight:600;font-size:.78rem;transition:all .2s;}
+.tts-btn:hover:not(:disabled){background:#f0f0f0;border-color:#999;}
+.tts-btn:disabled{opacity:.45;cursor:not-allowed;}
 .tdv{background:#f0f0f0;border:2px solid #e0e0e0;border-radius:10px;padding:24px;margin-bottom:28px;min-height:160px;font-size:1rem;line-height:1.7;color:#333;text-align:left;max-height:280px;overflow-y:auto;width:100%;}
 .tdv.empty{color:#ccc;font-style:italic;}
 .tdv textarea{font-family:'Sora',sans-serif;}
@@ -915,6 +958,7 @@ export default function TechnicalInterview() {
 .mrng{width:96px;height:96px;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .25s;}
 .mrng.idle{background:#111;}
 .mrng.active{background:#1a1a1a;animation:mpls 1.6s ease-in-out infinite;}
+.mrng.blocked{background:#aaa;cursor:not-allowed;opacity:.7;}
 @keyframes mpls{0%{box-shadow:0 0 0 0 rgba(17,17,17,.18),0 0 0 0 rgba(17,17,17,.08);}70%{box-shadow:0 0 0 10px rgba(17,17,17,.04),0 0 0 20px rgba(17,17,17,0);}100%{box-shadow:0 0 0 0 rgba(17,17,17,0),0 0 0 0 rgba(17,17,17,0);}}
 .mrng svg{width:34px;height:34px;fill:#fff;}
 .mst{font-size:.75rem;font-weight:500;letter-spacing:.1em;text-transform:uppercase;color:#888;}
@@ -924,6 +968,7 @@ export default function TechnicalInterview() {
 .bstop:hover{background:#f0f0f0;border-color:#aaa;}
 .bnxt{padding:10px 26px;background:#111;color:#fff;border:1px solid #111;border-radius:7px;cursor:pointer;font-family:'Sora',sans-serif;font-weight:600;font-size:.82rem;transition:all .2s;}
 .bnxt:hover{background:#333;}
+.bnxt:disabled{opacity:.45;cursor:not-allowed;}
 .bsub{padding:10px 26px;background:#2ecc71;color:#fff;border:1px solid #2ecc71;border-radius:7px;cursor:pointer;font-family:'Sora',sans-serif;font-weight:600;font-size:.82rem;transition:all .2s;}
 .bsub:hover{background:#27ae60;}
 
@@ -1119,7 +1164,50 @@ export default function TechnicalInterview() {
               </div>
             )}
             <div className="qtg">Technical Question</div>
-            <div className="qtx">{shuffledQuestions[currentQuestionIdx]}</div>
+            <div className="qtx">{currentQuestion}</div>
+
+            <div className="tts" aria-live="polite">
+              <div className="tts-status">
+                <span
+                  className={`tts-dot ${
+                    isQuestionSpeechPlaying || isQuestionSpeechPreparing
+                      ? 'active'
+                      : isQuestionSpeechComplete
+                        ? 'ready'
+                        : isQuestionSpeechPaused
+                          ? 'warn'
+                          : ''
+                  }`}
+                />
+                <span>{questionSpeechLabel}</span>
+              </div>
+              <div className="tts-controls">
+                <button
+                  type="button"
+                  className="tts-btn"
+                  onClick={replayQuestionSpeech}
+                  disabled={!currentQuestion || isQuestionSpeechPreparing}
+                >
+                  {questionSpeechStatus === "completed" || questionSpeechStatus === "error" ? "Replay" : "Play"}
+                </button>
+                <button
+                  type="button"
+                  className="tts-btn"
+                  onClick={pauseQuestionSpeech}
+                  disabled={!isQuestionSpeechPlaying}
+                >
+                  Pause
+                </button>
+                <button
+                  type="button"
+                  className="tts-btn"
+                  onClick={resumeQuestionSpeech}
+                  disabled={!isQuestionSpeechPaused}
+                >
+                  Resume
+                </button>
+              </div>
+            </div>
 
             <div>
               {hasStopped && (
@@ -1161,7 +1249,7 @@ export default function TechnicalInterview() {
 
             <div className="mca">
               <div
-                className={`mrng ${isMicActive ? 'active' : 'idle'}`}
+                className={`mrng ${isMicActive ? 'active' : 'idle'} ${!isMicActive && isRecordingBlocked ? 'blocked' : ''}`}
                 onClick={handleMicToggle}
               >
                 <svg viewBox="0 0 24 24">
@@ -1170,7 +1258,7 @@ export default function TechnicalInterview() {
               </div>
 
               <div className={`mst ${isMicActive ? 'rec' : ''}`}>
-                {isMicActive ? 'Recording in progress' : 'Click to begin recording'}
+                {isMicActive ? 'Recording in progress' : isRecordingBlocked ? 'Wait for the question to finish' : 'Click to begin recording'}
               </div>
 
               <div className="abts">
