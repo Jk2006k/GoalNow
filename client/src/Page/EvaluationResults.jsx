@@ -1,12 +1,11 @@
 import React, { useState, useEffect, useCallback } from "react"
 import axios from "axios"
+import { API_BASE_URL } from "../services/apiConfig"
 
 export default function EvaluationResults(){
   const [evaluations, setEvaluations] = useState([])
   const [loading, setLoading] = useState(true)
   const [selectedEvaluation, setSelectedEvaluation] = useState(null)
-
-  const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://goalnow.onrender.com/api'
 
   const fetchEvaluations = useCallback(async (token) => {
     try {
@@ -27,7 +26,7 @@ export default function EvaluationResults(){
       console.error('Error fetching evaluations:', error)
       setLoading(false)
     }
-  }, [API_BASE_URL])
+  }, [])
 
   useEffect(() => {
     const token = localStorage.getItem('authToken')

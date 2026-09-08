@@ -1,6 +1,5 @@
 import axios from 'axios';
-
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://goalnow.onrender.com/api';
+import { API_BASE_URL } from './apiConfig';
 
 // Create axios instance with base config
 const apiClient = axios.create({

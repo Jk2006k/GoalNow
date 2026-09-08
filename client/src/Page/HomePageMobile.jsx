@@ -5,16 +5,12 @@ import { authService } from "../services/authService"
 
 export default function HomePageMobile() {
   const navigate = useNavigate()
-  const [user, setUser] = useState(null)
+  const [user] = useState(() => authService.getCurrentUser())
 
   useEffect(() => {
     if (!authService.isLoggedIn()) {
       navigate("/login")
       return
-    }
-    const currentUser = authService.getCurrentUser()
-    if (currentUser) {
-      setUser(currentUser)
     }
   }, [navigate])
 

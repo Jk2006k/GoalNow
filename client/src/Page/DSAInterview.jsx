@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useCallback } from "react"
 import { useNavigate } from "react-router-dom"
 import { authService } from "../services/authService"
+import { apiUrl } from "../services/apiConfig"
 import Editor from "@monaco-editor/react"
 import "./DSAInterview.css"
 
 export default function DSAInterview() {
   const navigate = useNavigate()
-  const showManualInputSection = false;
 
   // Get actual user ID from auth service
   const getUserId = () => {
@@ -25,15 +25,12 @@ export default function DSAInterview() {
   const [testCases, setTestCases] = useState([])
   const [selectedTestCase, setSelectedTestCase] = useState(0)
   const [testResults, setTestResults] = useState({})
-  const [manualOutput, setManualOutput] = useState("")
-  const [manualError, setManualError] = useState("")
   const [currentQuestionNumber, setCurrentQuestionNumber] = useState(1)
   const [testSessions, setTestSessions] = useState([])
   const [showNextButton, setShowNextButton] = useState(false)
   const [allTestsPassed, setAllTestsPassed] = useState(false)
   const [fullscreenViolation, setFullscreenViolation] = useState(false)
   const [allQuestions, setAllQuestions] = useState([])
-  const [difficulty, setDifficulty] = useState(null)
   const [timeRemaining, setTimeRemaining] = useState(0)
   const [timerActive, setTimerActive] = useState(false)
   const [showTimerWarning, setShowTimerWarning] = useState(false)
@@ -45,15 +42,14 @@ export default function DSAInterview() {
         setQuestionError("")
 
         const selectedDifficulty = window.__goalnowDifficulty || 'easy'
-        setDifficulty(selectedDifficulty)
 
         let questionsToLoad = []
 
         if (selectedDifficulty === 'prep') {
           try {
-            const easyRes = await fetch("https://goalnow.onrender.com/api/questions/all?count=2&difficulty=easy")
-            const mediumRes = await fetch("https://goalnow.onrender.com/api/questions/all?count=2&difficulty=medium")
-            const hardRes = await fetch("https://goalnow.onrender.com/api/questions/all?count=1&difficulty=hard")
+            const easyRes = await fetch(apiUrl("/questions/all?count=2&difficulty=easy"))
+            const mediumRes = await fetch(apiUrl("/questions/all?count=2&difficulty=medium"))
+            const hardRes = await fetch(apiUrl("/questions/all?count=1&difficulty=hard"))
 
             const easyData = easyRes.ok ? await easyRes.json() : { data: [] }
             const mediumData = mediumRes.ok ? await mediumRes.json() : { data: [] }
@@ -75,7 +71,7 @@ export default function DSAInterview() {
           }
         } else {
           // For specific difficulty, fetch 5 questions of that difficulty
-          const response = await fetch(`https://goalnow.onrender.com/api/questions/all?count=5&difficulty=${selectedDifficulty}`)
+          const response = await fetch(apiUrl(`/questions/all?count=5&difficulty=${selectedDifficulty}`))
 
           if (!response.ok) {
             throw new Error(`Failed to fetch questions: ${response.status}`)
@@ -144,7 +140,7 @@ export default function DSAInterview() {
       const userId = getUserId()
       console.log('🔐 DSA Auto-Submit: userId=', userId, 'questionId=', currentQuestion._id)
       
-      const res = await fetch("https://goalnow.onrender.com/api/submit", {
+      const res = await fetch(apiUrl("/submit"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -301,7 +297,7 @@ export default function DSAInterview() {
       const userId = getUserId()
       console.log('📤 DSA Run Submit: userId=', userId, 'questionId=', currentQuestion._id)
       
-      const res = await fetch("https://goalnow.onrender.com/api/submit", {
+      const res = await fetch(apiUrl("/submit"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -386,10 +382,6 @@ export default function DSAInterview() {
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
   }
 
-  const runWithManualInput = () => {
-    // This function is no longer used - Run Code button has been removed
-  }
-
   const runAllTests = async () => {
     if (!code.trim())       { setError("Please write some code first"); return }
     if (!currentQuestion)   { setError("Question not loaded yet");      return }
@@ -400,7 +392,7 @@ export default function DSAInterview() {
     setTestResults({})
 
     try {
-      const res = await fetch("https://goalnow.onrender.com/api/run-all", {
+      const res = await fetch(apiUrl("/run-all"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -483,7 +475,7 @@ export default function DSAInterview() {
       const userId = getUserId()
       console.log('🎯 DSA Final Submit: userId=', userId, 'questionId=', currentQuestion._id)
       
-      const res = await fetch("https://goalnow.onrender.com/api/submit", {
+      const res = await fetch(apiUrl("/submit"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -920,45 +912,6 @@ export default function DSAInterview() {
               </div>
             )}
           </div>
-
-          {showManualInputSection && (
-            <div className="output-section input-section" style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-              <div className="section-label">Custom Input</div>
-              <textarea
-                className="manual-input-box"
-                value={manualInput}
-                onChange={(e) => setManualInput(e.target.value)}
-                placeholder="Enter custom input here..."
-                disabled={isRunning}
-                style={{ minHeight: "100px", maxHeight: "150px", overflow: "auto" }}
-              />
-              <button 
-                className="btn btn-run-input" 
-                onClick={runWithManualInput} 
-                disabled={isRunning}
-              >
-                {isRunning ? "Running..." : "Run with Input"}
-              </button>
-            </div>
-          )}
-
-          {manualError && (
-            <div className="output-section error" style={{ backgroundColor: "rgba(241, 100, 100, 0.10)", borderLeft: "2px solid rgb(241, 100, 100)" }}>
-              <div className="section-label" style={{ color: "#f16464" }}>Error</div>
-              <div className="output-content" style={{ backgroundColor: "#0f1117", borderColor: "#fcc", color: "#c33" }}>
-                {manualError}
-              </div>
-            </div>
-          )}
-
-          {manualOutput && !manualError && (
-            <div className="output-section success" style={{ backgroundColor: "rgba(62, 207, 142, 0.10)", borderLeft: "2px solid rgb(62, 207, 142)" }}>
-              <div className="section-label" style={{ color: "#3ecf8e" }}>Manual Output</div>
-              <div className="output-content" style={{ backgroundColor: "#0f1117", borderColor: "#cfc", color: "#3ecf8e", fontFamily: "'IBM Plex Mono', monospace" }}>
-                {manualOutput}
-              </div>
-            </div>
-          )}
 
           {error && (
             <div className="output-section error">

@@ -406,7 +406,7 @@ Update Your Profile
 
 <div className="avatar-section" style={{ gridColumn: '1 / span 2' }}>
 <div className="avatar-display">
-  {(profileImage || user?.profileImage) && (profileImage || user?.profileImage).length > 0 ? (
+  {(profileImage || user?.profileImage)?.length > 0 ? (
     <img 
       key={profileImage || user?.profileImage}
       src={profileImage || user.profileImage}

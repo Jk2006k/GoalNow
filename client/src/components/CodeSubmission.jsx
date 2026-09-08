@@ -11,6 +11,7 @@
 import React, { useState } from 'react';
 import axios from 'axios';
 import { authService } from '../services/authService';
+import { API_BASE_URL } from '../services/apiConfig';
 
 // Language options for the code editor
 const LANGUAGES = {
@@ -20,9 +21,7 @@ const LANGUAGES = {
   '54': { name: 'C++', ext: 'cpp' }
 };
 
-const API_URL = import.meta.env.VITE_API_URL?.replace('/api', '') || 'https://goalnow.onrender.com';
-
-const CodeSubmission = ({ questionId, starterCode = '', functionName = 'solution' }) => {
+const CodeSubmission = ({ questionId, starterCode = '' }) => {
   const [code, setCode] = useState(starterCode);
   const [selectedLanguage, setSelectedLanguage] = useState('71'); // Default to Python
   const [loading, setLoading] = useState(false);
@@ -54,7 +53,7 @@ const CodeSubmission = ({ questionId, starterCode = '', functionName = 'solution
     try {
       console.log('🏃 Running code against visible test cases...');
       
-      const response = await axios.post(`${API_URL}/api/run`, {
+      const response = await axios.post(`${API_BASE_URL}/run`, {
         userCode: code,
         questionId: questionId,
         languageId: selectedLanguage,
@@ -93,7 +92,7 @@ const CodeSubmission = ({ questionId, starterCode = '', functionName = 'solution
     try {
       console.log('📤 Submitting code for full evaluation...');
       
-      const response = await axios.post(`${API_URL}/api/submit`, {
+      const response = await axios.post(`${API_BASE_URL}/submit`, {
         userCode: code,
         questionId: questionId,
         languageId: selectedLanguage,
@@ -195,7 +194,7 @@ const CodeSubmission = ({ questionId, starterCode = '', functionName = 'solution
  * - Run Code: Detailed results with test case inputs/outputs
  * - Submit: Summary only (no hidden test case details)
  */
-const ResultsDisplay = ({ results, language, actionType }) => {
+const ResultsDisplay = ({ results, actionType }) => {
   const isRunCode = actionType === 'run';
   const isSubmit = actionType === 'submit';
   const compilation = results.compilation || { success: true };
