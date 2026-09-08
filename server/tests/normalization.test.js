@@ -11,7 +11,7 @@ const normalizeOutput = (output) => {
   
   let normalized = output
     .trim()                              // Remove leading/trailing whitespace
-    .replace(/[\[\]()]/g, "")           // Remove brackets and parentheses: [], ()
+    .replace(/[\[\]()"']/g, "")         // Remove collection delimiters and string quotes
     .replace(/,/g, " ")                 // Replace commas with spaces
     .replace(/\r\n/g, " ")              // Replace Windows newlines with spaces
     .replace(/\n/g, " ")                // Replace Unix newlines with spaces

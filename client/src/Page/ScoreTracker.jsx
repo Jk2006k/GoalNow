@@ -2,6 +2,7 @@ import React, { useEffect, useState, useCallback } from "react"
 import { useNavigate } from "react-router-dom"
 import { authService } from "../services/authService"
 import axios from "axios"
+import { API_BASE_URL } from "../services/apiConfig"
 
 export default function ScoreTracker() {
   const navigate = useNavigate()
@@ -15,8 +16,6 @@ export default function ScoreTracker() {
   const [selectedQuestion, setSelectedQuestion] = useState(null)
   const [refreshTrigger, setRefreshTrigger] = useState(0)
   const [lastRefreshTime, setLastRefreshTime] = useState(null)
-
-  const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://goalnow.onrender.com/api'
 
   const getScoreColor = (score) => {
     if (score >= 80) return '#111'

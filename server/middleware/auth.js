@@ -10,10 +10,10 @@ const verifyToken = (req, res, next) => {
       return res.status(401).json({ message: 'No token provided' });
     }
 
-    console.log('🔐 Verifying token...');
-    console.log('Token first 20 chars:', token.substring(0, 20) + '...');
-    console.log('JWT_SECRET defined:', !!process.env.JWT_SECRET);
-    console.log('JWT_SECRET value:', process.env.JWT_SECRET?.substring(0, 10) + '...');
+    if (!process.env.JWT_SECRET) {
+      console.error('❌ Auth Error: JWT_SECRET is not configured');
+      return res.status(500).json({ message: 'Authentication is not configured' });
+    }
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     console.log('✅ Token verified successfully. UserId:', decoded.userId);
@@ -24,7 +24,6 @@ const verifyToken = (req, res, next) => {
     console.error('❌ Token verification failed:');
     console.error('Error name:', error.name);
     console.error('Error message:', error.message);
-    console.error('JWT_SECRET matches:', process.env.JWT_SECRET ? 'defined' : 'UNDEFINED');
     
     if (error.name === 'TokenExpiredError') {
       return res.status(401).json({ message: 'Token expired' });

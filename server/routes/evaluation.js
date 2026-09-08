@@ -14,7 +14,7 @@ const User = require('../models/User');
 const PROCTORING_VIDEO_DIR = path.resolve(__dirname, '../uploads/proctoring');
 
 // Initialize OpenRouter API Key
-const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY || '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';
+const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
 const GEMINI_MODEL_CANDIDATES = [
   process.env.GEMINI_MODEL,
   'gemini-2.0-flash',
